@@ -1,13 +1,13 @@
 {
-  "title": "Counter-USV Adversarial Robustness — derived data & results",
-  "description": "Weight-free derived annotations, track/behavior/defense features, and evaluation freezes for the Counter-USV adversarial robustness project. Companion to the GitHub code repository. Paper figures, model weights, and patch-bank tensors are withheld.",
-  "upload_type": "dataset",
+  "title": "Counter-USV Adversarial Robustness",
+  "description": "Testbed and class-kinematics consistency defense for shore-based counter-USV electro-optical detection under adversarial attack. This record is the code archive (MIT). Derived annotations, track features, and evaluation freezes are a separate dataset deposit (CC BY 4.0). Trained model weights and patch-bank tensors are withheld.",
+  "upload_type": "software",
   "access_right": "open",
-  "license": "CC-BY-4.0",
+  "license": "MIT",
   "creators": [
     {
       "name": "Reifschneider, Jon",
-      "affiliation": "Autonomous Systems Engineering Lab (ASEL), Duke University"
+      "affiliation": "Complex Systems Engineering Lab (CSEL), Duke University"
     }
   ],
   "keywords": [
@@ -17,13 +17,5 @@
     "AIS",
     "object detection"
   ],
-  "related_identifiers": [
-    {
-      "relation": "isSupplementTo",
-      "identifier": "https://github.com/Autonomous-Systems-Engineering-Lab/counter-usv-detection",
-      "resource_type": "software",
-      "scheme": "url"
-    }
-  ],
-  "notes": "Code is MIT-licensed in the companion GitHub repository (Zenodo–GitHub code DOI to be cross-linked when minted). See ARTIFACT_README.md and docs/DATA_LICENSES.md in the deposit."
+  "notes": "Derived data and results are deposited separately under CC BY 4.0. Add that dataset DOI here as a related identifier (relation isSupplementedBy) once it is minted."
 }

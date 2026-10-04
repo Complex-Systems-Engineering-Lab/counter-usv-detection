@@ -124,7 +124,6 @@ ROOT_META = [
     "LICENSE",
     "LICENSE-DATA",
     "CITATION.cff",
-    ".zenodo.json",
     "docs/DATA_LICENSES.md",
     "docs/DUAL_USE.md",
 ]
