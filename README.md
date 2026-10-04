@@ -15,8 +15,6 @@ Seeing an *undisguised* USV is not the hard case. An adversary can instead:
 
 These threats are not equal in a layered system. Evasion must beat every sensor: an EO miss can still appear on radar. A **benign label** explains the contact away, so presence-only fusion does not catch it. That residual **disguise** threat is what this project targets.
 
-A further scoping point: most maritime “USV detection” benchmarks study perception *by* a USV (collision avoidance). This work studies the opposite — shore-based detection *of* an incoming hostile craft.
-
 ### Research gap
 
 Existing adversarial work on ships is mostly overhead satellite imagery, onboard “detection by” platforms, or fusion that only checks whether a track *exists*. Class–track consistency defenses appear in other domains (notably driving), but they usually (i) score image-plane bounding-box tracks that a pixel attack can manipulate, (ii) train on labeled tracks that already include the defended classes, and (iii) never require the adversary to change the object’s **physical motion**. AIS-based vessel-behavior models are mature, yet have not been linked to vision-detector robustness. And unlike many aerial threats, a hostile USV is often *built* to look like ordinary small craft — so hostile→benign disguise has no clean counter-UAV analog.
@@ -79,7 +77,7 @@ Script-level usage for data prep, attacks, and the behavior model is documented 
 
 ## Reproduction
 
-Paper figures and headline numbers are regenerable from **frozen digests** (not from re-running training). With local `results/**/FROZEN.json` artifacts (or the weight-free data/results bundle once published):
+Data figures and headline numbers are regenerable from **frozen digests** (not from re-running training). The system diagram is a local file and is not in this repository. With local `results/**/FROZEN.json` artifacts (or the weight-free data/results bundle once published):
 
 ```bash
 python scripts/report/build_all.py          # verify freeze digests, write results/paper/

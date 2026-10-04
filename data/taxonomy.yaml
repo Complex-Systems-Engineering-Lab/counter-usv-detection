@@ -1,5 +1,5 @@
 # Counter-USV — Unified label taxonomy & hostile/benign mapping
-# Companion: data/INVENTORY.md, docs/THREAT_MODEL.md, docs/METRICS.md.
+# Companion: data/DATACARD.md, docs/THREAT_MODEL.md, docs/METRICS.md.
 #
 # Purpose
 # One canonical class schema shared by (a) the EO detector's asserted class and
@@ -133,7 +133,7 @@ canonical_classes:
       labels the craft as a benign class (the attack); that is the case the
       class-kinematics check is designed to catch. Real imagery preferred;
       generated frames only as clearly-flagged augmentation. See docs/THREAT_MODEL.md
-      (EO-baseline note) and data/INVENTORY.md.
+      (EO-baseline note).
 
   static_aid:
     role: non_target

@@ -65,7 +65,7 @@ DEFAULT_DATA_DIR = REPO_ROOT / "data"
 DEFAULT_RESULTS = REPO_ROOT / "results" / "splits"
 
 # Per-source viewpoint + whether it is the operational (shore near-waterline) viewpoint.
-# Mirror of scripts/data/build_eval_slice.py VIEWPOINT (from data/INVENTORY.md).
+# Mirror of scripts/data/build_eval_slice.py VIEWPOINT.
 VIEWPOINT = {
     "seaships": ("shore_near_waterline", True),
     "smd": ("shore_fixed_platform", True),

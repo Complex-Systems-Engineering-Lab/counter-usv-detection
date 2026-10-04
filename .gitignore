@@ -59,10 +59,12 @@ weights/
 results/**
 !results/.gitkeep
 
-# Raster/vector exports of the hand-authored figures. The SVG is the source of
-# truth; build_all.py regenerates these when cairosvg is importable.
+# Manuscript figures stay local. The system diagram is not part of the
+# repository; build_all.py copies figures/fig1_system.svg into results/paper/
+# only when that file is present.
 figures/*.pdf
 figures/*.png
+figures/fig1_system.svg
 runs/
 wandb/
 mlruns/

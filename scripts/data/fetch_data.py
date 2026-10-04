@@ -46,8 +46,8 @@ Notes
   for Google-Drive sources if installed (``pip install gdown``); otherwise the
   manual link is printed.
 * Nothing here re-distributes data. It fetches from providers for your own local
-  use. Record exact counts / Class-B share in ``data/INVENTORY.md`` after pulling
-  (the source inventory open action items).
+  use. Record exact counts and the Class-B share in ``data/DATACARD_EO.md`` and
+  ``data/DATACARD_TRACKS.md`` after pulling.
 """
 
 from __future__ import annotations
@@ -448,9 +448,9 @@ def main(argv: list[str] | None = None) -> int:
     for name in targets:
         fetch_one(name, args.data_dir, args.force, args.ais_start, args.ais_end)
 
-    print("\nDone. Record exact counts / Class-B share in data/INVENTORY.md "
-          "(the source inventory open action items), and keep data/raw/CHECKSUMS.sha256 for "
-          "the data card (data-card packaging).")
+    print("\nDone. Record exact counts and the Class-B share in "
+          "data/DATACARD_EO.md and data/DATACARD_TRACKS.md, and keep "
+          "data/raw/CHECKSUMS.sha256 for the data card.")
     return 0
 
 

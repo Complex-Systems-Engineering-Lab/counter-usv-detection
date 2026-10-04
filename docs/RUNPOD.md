@@ -49,7 +49,7 @@ In the pod **Connect** panel, copy the **IP + port** SSH line (usually
 `ssh root@<IP> -p <PORT> -i ...`), then on the Mac:
 
 ```bash
-cd /Users/jonreifschneider/Duke/Research/CASL/counterUSV
+cd /path/to/counter-usv-detection
 export RSYNC_RSH='ssh -T -p <PORT> -i ~/.ssh/runpod -o RequestTTY=no'
 ./scripts/detector/sync_eo_train_bundle.sh root@<IP>:/workspace/counterUSV
 ```
@@ -170,7 +170,7 @@ All three families train identically. Roles in
 From the **repo root on your laptop** (same Direct TCP `RSYNC_RSH` as sync):
 
 ```bash
-cd /Users/jonreifschneider/Duke/Research/CASL/counterUSV
+cd /path/to/counter-usv-detection
 export RSYNC_RSH='ssh -T -p <PORT> -i ~/.ssh/runpod -o RequestTTY=no'
 rsync -avh --no-owner --no-group -e "$RSYNC_RSH" \
   root@<IP>:/workspace/counterUSV/results/detector_baselines/ \
@@ -208,7 +208,7 @@ weights only (~70 MB; path list
 [`configs/attacks/runpod_evasion_paths.txt`](../configs/attacks/runpod_evasion_paths.txt)):
 
 ```bash
-cd /Users/jonreifschneider/Duke/Research/CASL/counterUSV
+cd /path/to/counter-usv-detection
 export RSYNC_RSH='ssh -T -p <PORT> -i ~/.ssh/runpod -o RequestTTY=no'
 
 # Fresh pod only — skip if EO bundle + setup_runpod_eo.sh already done:
@@ -273,7 +273,7 @@ df -h /workspace
 From the **repo root on your laptop** (same Direct TCP `RSYNC_RSH`):
 
 ```bash
-cd /Users/jonreifschneider/Duke/Research/CASL/counterUSV
+cd /path/to/counter-usv-detection
 export RSYNC_RSH='ssh -T -p <PORT> -i ~/.ssh/runpod -o RequestTTY=no'
 rsync -avh --no-owner --no-group -e "$RSYNC_RSH" \
   root@<IP>:/workspace/counterUSV/results/attacks/evasion/ \
@@ -299,7 +299,7 @@ is roughly **2×** a single ESR family run (~same per-image cost × 2 classes).
 ### Laptop → pod
 
 ```bash
-cd /Users/jonreifschneider/Duke/Research/CASL/counterUSV
+cd /path/to/counter-usv-detection
 export RSYNC_RSH='ssh -T -p <PORT> -i ~/.ssh/runpod -o RequestTTY=no'
 
 # Fresh pod only — skip if EO bundle + setup_runpod_eo.sh already done:

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Build the security-lite paper figure set into ``results/paper/``.
 
-Copies the hand-authored Fig. 1 SVG, regenerates Figs 2–6 + S1–S2 from digest-
-verified attack/defense artifacts, and writes ``PROVENANCE.json``.
+Regenerates Figs 2–6 + S1–S2 from digest-verified attack/defense artifacts,
+copies a local system diagram when ``figures/fig1_system.svg`` is present,
+and writes ``PROVENANCE.json``. The diagram is not part of the repository.
 
 Usage
 -----
@@ -22,6 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "report"))
 
 from _common import (  # noqa: E402
+    FIG1_SRC,
     PAPER_DIR,
     copy_fig1,
     rel,
@@ -42,9 +44,11 @@ def run(out_dir: Path, *, skip_verify: bool) -> dict:
     verification = verify_freezes(skip=skip_verify)
     figures: dict = {}
 
-    print("[build] Fig. 1 (static SVG) …")
+    print("[build] Fig. 1 (local SVG, if present) …")
     figures["fig1_system"] = copy_fig1(out_dir=out_dir)
-    if figures["fig1_system"].get("cairosvg_note"):
+    if figures["fig1_system"].get("skipped"):
+        print(f"  note: {figures['fig1_system']['note']}")
+    elif figures["fig1_system"].get("cairosvg_note"):
         print(f"  note: {figures['fig1_system']['cairosvg_note']}")
 
     print("[build] Fig. 2 RQ1 feasibility …")
@@ -100,7 +104,6 @@ def main() -> int:
             out = Path(tmp)
             run(out, skip_verify=True)
             expected = [
-                "fig1_system.svg",
                 "fig2_rq1_feasibility.png",
                 "fig3_rq2_ddr_gap.png",
                 "fig4_label_swap.png",
@@ -112,6 +115,8 @@ def main() -> int:
                 "CAPTIONS.md",
                 "PROVENANCE.json",
             ]
+            if FIG1_SRC.is_file():
+                expected.insert(0, "fig1_system.svg")
             missing = [n for n in expected if not (out / n).is_file()]
             if missing:
                 raise SystemExit(f"smoke missing outputs: {missing}")

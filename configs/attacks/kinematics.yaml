@@ -59,7 +59,7 @@ dynamics:
   max_turn_rate_dps: 8.0
   max_accel_kn_per_s: 0.5
 
-# Corpus plausibility band (writeup): tracks with p95 SOG ≥ threshold &
+# Corpus plausibility band: tracks with p95 SOG ≥ threshold &
 # straightness ≥ 0.95. Counts are documentary; generator tags cells outside
 # the highest occupied band as extrapolation.
 plausibility_band:

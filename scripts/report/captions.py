@@ -349,7 +349,8 @@ def build_records(f: dict[str, Any]) -> list[dict[str, Any]]:
             ),
             "caveats": [
                 "Schematic, not to scale; hand-authored vector art rather than a "
-                "generated figure (see figures/README.md).",
+                "generated figure. The diagram file is local and is not part of "
+                "the repository.",
                 "AIS is never read at runtime and no hostile track enters the benign "
                 "envelope model.",
             ],

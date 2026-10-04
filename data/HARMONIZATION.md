@@ -6,8 +6,8 @@ nothing in this document rewrites pixels or annotations on disk. The COCO master
 (`data/annotations/coco_master.json`) and the track Parquets stay in their native,
 provenance-preserving form; loaders apply the transforms below.
 
-Companion docs: `data/INVENTORY.md` (sources/counts), `data/taxonomy.yaml` (classes),
-`docs/DATA_DICTIONARY.md` (track columns), `results/eo_audit/report.md` (EO audit),
+Companion docs: `data/DATACARD.md` (sources and counts), `data/taxonomy.yaml` (classes),
+`docs/DATA_DICTIONARY.md` (track columns), `data/DATACARD_EO.md` (EO audit),
 `configs/base.yaml` (the machine-readable knobs that mirror this contract).
 
 Status: **frozen for detector training** (EO) and the benign-behavior model (tracks). Changes require a version bump

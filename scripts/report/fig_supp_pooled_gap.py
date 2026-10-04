@@ -37,7 +37,7 @@ from _common import (  # noqa: E402
 ARM = "kinematics_only"
 THIN_N = 20
 
-# Headline cells from the writeup (§9.9).
+# Headline cells for the pooled-versus-conditional comparison.
 HEADLINE_CELLS = [
     ("recreational", "fishing", "recreational\nas fishing"),
     ("recreational", "sailing", "recreational\nas sailing"),

@@ -12,7 +12,7 @@ license-url: "https://opensource.org/licenses/MIT"
 abstract: >-
   Testbed and class–kinematics consistency defense for shore-based counter-USV
   EO detection under adversarial attack. Public artifacts include code, derived
-  annotations/features, evaluation freezes, and paper figures. Trained model
+  annotations/features, and evaluation freezes. Trained model
   weights are withheld for dual-use reasons and available upon reasonable request.
 keywords:
   - maritime

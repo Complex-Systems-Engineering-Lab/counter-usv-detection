@@ -28,7 +28,7 @@ thin runnable layer on top.
 
 **attacks/** — `render_marine_eot_grid` · `smoke_patch_core` · `run_evasion` · `run_disguise` · `run_transfer` · `run_oracle` · `freeze_attacks` · `generate_adversary_tracks` · `validate_adversary_motion` · `sync_*_runpod.sh` · `setup_runpod_*.sh`
 
-**report/** — `build_all` · `fig_rq1_feasibility` · `fig_rq2_ddr_gap` · `fig_label_swap` · `fig_rq3_cost_warning` · `fig_far` · `fig_supp_severity` · `fig_supp_pooled_gap` · `captions` (Fig. 1 is hand-authored under `figures/`)
+**report/** — `build_all` · `fig_rq1_feasibility` · `fig_rq2_ddr_gap` · `fig_label_swap` · `fig_rq3_cost_warning` · `fig_far` · `fig_supp_severity` · `fig_supp_pooled_gap` · `captions` (system diagram is local, not tracked)
 
 **release/** — `build_bundle` (weight-free data/results archive → `dist/release/`)
 
@@ -74,7 +74,7 @@ Extras:
 - Optional deps: `tqdm` (progress bar; already in `requirements.txt`), `gdown` (Google-Drive sources).
 
 After pulling, record exact image/track counts and the **Class-B share** in
-`data/INVENTORY.md` (the source inventory open action items).
+`data/DATACARD_EO.md` and `data/DATACARD_TRACKS.md`.
 
 ## `data/build_coco_master.py` — EO annotation harmonization
 
@@ -392,11 +392,11 @@ pooled-vs-conditional ablation summaries (`label_swap_pooled/`,
 
 ## `report/` — regenerable paper figures
 
-Builds the security-lite figure set into `results/paper/` from digest-verified
-attack and defense freezes. Fig. 1 is hand-authored (`figures/fig1_system.svg`)
-and copied as a static asset; Figs 2–6 and S1–S2 are regenerated from pinned
-JSON/parquet. Digests are checked at run time against
-`results/attacks/FROZEN.json` and `results/defense/FROZEN.json`.
+Builds the data figures into `results/paper/` from digest-verified attack and
+defense freezes. Figs 2–6 and S1–S2 are regenerated from pinned JSON/parquet.
+A local system diagram at `figures/fig1_system.svg` is copied when that file
+is present; it is not part of the repository. Digests are checked at run time
+against `results/attacks/FROZEN.json` and `results/defense/FROZEN.json`.
 
 ```bash
 python scripts/report/build_all.py
@@ -412,8 +412,9 @@ python scripts/report/fig_supp_pooled_gap.py
 python scripts/report/captions.py
 ```
 
-Outputs: `results/paper/fig{1..6,_S1,_S2}_*.{png,pdf,svg}` + `CAPTIONS.{json,md}` +
-`PROVENANCE.json`. See `figures/README.md` for editing/export notes on Fig. 1.
+Outputs: `results/paper/fig{2..6,_S1,_S2}_*.{png,pdf}` + `CAPTIONS.{json,md}` +
+`PROVENANCE.json`, plus `fig1_system.svg` when a local diagram is present.
+These files are local; they are not part of the data deposit.
 
 The figures carry no titles and no footnote text — panels are labelled `(a)`,
 `(b)`, … and everything descriptive lives in the captions. `captions.py` emits
@@ -869,8 +870,9 @@ cards (`data/DATACARD.md` is a thin index over both).
 ## `release/build_bundle.py` — weight-free Zenodo data/results bundle
 
 Stages the derived inventory (with release transforms), evaluation freezes,
-summaries, and `results/paper/` under `dist/release/stage/`, then writes
-`RELEASE.json`, `CHECKSUMS.sha256`, `ARTIFACT_README.md`, and a `.tar.gz`.
+and summaries under `dist/release/stage/`, then writes `RELEASE.json`,
+`CHECKSUMS.sha256`, `ARTIFACT_README.md`, and a `.tar.gz`. Paper figures and
+captions (`results/paper/`) are not staged.
 
 Transforms (staging only — local `data/` unchanged): drop `mmsi` columns; strip
 McShips rows from `coco_master` / audit CSVs. Redaction gate fails if any weight

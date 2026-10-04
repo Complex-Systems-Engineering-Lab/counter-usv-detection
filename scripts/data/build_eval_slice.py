@@ -23,7 +23,7 @@ watercraft* → "detection **by** a vessel," the viewpoint this project distingu
 *against*. The operational, shore-based near-waterline instances are the minority
 (SeaShips, SMD on-shore). The slice tags every row with `viewpoint` +
 `operational_viewpoint` so reporting can stratify and not over-credit the wrong
-viewpoint. (Viewpoint assessment: see `data/INVENTORY.md`.)
+viewpoint.
 
 Outputs
 -------
@@ -60,7 +60,7 @@ DEFAULT_RESULTS = REPO_ROOT / "results" / "eval_slice"
 SLICE_CLASSES = ["small_craft", "recreational", "fishing", "sailing"]
 
 # Per-source viewpoint + whether it is the operational (shore near-waterline,
-# "detection OF a USV") viewpoint. From data/INVENTORY.md.
+# "detection OF a USV") viewpoint.
 VIEWPOINT = {
     "seaships": ("shore_near_waterline", True), # deployed coastline cameras — best match
     "smd": ("shore_fixed_platform", True), # fixed on-shore platform

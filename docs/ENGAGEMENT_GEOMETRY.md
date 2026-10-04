@@ -49,7 +49,7 @@ orphaning the attack half of the project. Empirically, intercept-like
 geometry is also **class-dependent** on real AIS (routine 13–16 kn fairway
 transits look intercept-like under a loose threshold for merchant ships and
 not for sailing / fishing). The asserted class is what normalizes the
-geometry; see the design pilot recorded in the internal writeup.
+geometry.
 
 ## Placements are asset archetypes
 

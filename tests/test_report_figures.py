@@ -16,7 +16,6 @@ sys.path.insert(0, str(REPORT))
 
 from _common import (  # noqa: E402
     FIG1_SRC,
-    copy_fig1,
     sha256,
     verify_freezes,
 )
@@ -96,20 +95,27 @@ def test_verify_freezes_catches_tamper(tmp_path: Path) -> None:
         common.DEFENSE_FREEZE = old["DEFENSE_FREEZE"]
 
 
-def test_copy_fig1_requires_svg(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_copy_fig1_skips_when_absent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import _common as common
 
     monkeypatch.setattr(common, "FIG1_SRC", tmp_path / "missing.svg")
-    with pytest.raises(SystemExit, match="static Fig. 1 missing"):
-        common.copy_fig1(out_dir=tmp_path)
+    meta = common.copy_fig1(out_dir=tmp_path)
+    assert meta["skipped"] is True
+    assert not (tmp_path / "fig1_system.svg").is_file()
 
 
-def test_copy_fig1_ok(tmp_path: Path) -> None:
-    assert FIG1_SRC.is_file()
-    meta = copy_fig1(out_dir=tmp_path)
-    assert (tmp_path / "fig1_system.svg").is_file()
-    assert meta["sha256"] == sha256(FIG1_SRC)
+def test_copy_fig1_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import _common as common
+
+    src = tmp_path / "src.svg"
+    src.write_text("<svg xmlns='http://www.w3.org/2000/svg'/>")
+    monkeypatch.setattr(common, "FIG1_SRC", src)
+    out = tmp_path / "paper"
+    meta = common.copy_fig1(out_dir=out)
+    assert (out / "fig1_system.svg").is_file()
+    assert meta["sha256"] == sha256(src)
     assert meta["static"] is True
+    assert "skipped" not in meta
 
 
 def test_captions_cover_every_figure(tmp_path: Path) -> None:
@@ -200,7 +206,10 @@ def test_build_all_smoke() -> None:
     with tempfile.TemporaryDirectory(prefix="paper_test_") as tmp:
         out = Path(tmp)
         result = run(out, skip_verify=True)
-        assert (out / "fig1_system.svg").is_file()
+        if FIG1_SRC.is_file():
+            assert (out / "fig1_system.svg").is_file()
+        else:
+            assert result["figures"]["fig1_system"]["skipped"] is True
         for stem in (
             "fig2_rq1_feasibility",
             "fig3_rq2_ddr_gap",
