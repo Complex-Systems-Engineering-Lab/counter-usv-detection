@@ -25,8 +25,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "report"))
 
 from _common import (  # noqa: E402
+    ARM_LABELS,
     PAPER_DIR,
     apply_style,
+    imitating_ddr,
     legend_below,
     load_json,
     panel_label,
@@ -80,10 +82,7 @@ def _index_swap(data: dict) -> tuple[dict, dict]:
 
 
 def _ddr_map(summary: dict) -> dict[tuple[str, str], float]:
-    return {
-        (r["mimicked_class"], r["arm"]): float(r["ddr"]) * 100.0
-        for r in summary.get("consistency_ddr") or []
-    }
+    return {k: v["ddr"] * 100.0 for k, v in imitating_ddr(summary).items()}
 
 
 def build_figure(out_dir: Path) -> dict:
@@ -123,7 +122,7 @@ def build_figure(out_dir: Path) -> dict:
         x - width / 2,
         cond_gaps,
         width,
-        label="class-conditional",
+        label="one model per class",
         color="#4c78a8",
         edgecolor="#333333",
         linewidth=0.6,
@@ -132,7 +131,7 @@ def build_figure(out_dir: Path) -> dict:
         x + width / 2,
         pool_gaps,
         width,
-        label="pooled benign",
+        label="one shared model",
         color="#e45756",
         edgecolor="#333333",
         linewidth=0.6,
@@ -173,14 +172,15 @@ def build_figure(out_dir: Path) -> dict:
     w = 0.18
     # Offsets: kin-cond, kin-pool, geo-cond, geo-pool
     offsets = [-1.5 * w, -0.5 * w, 0.5 * w, 1.5 * w]
+    kin, geo = ARM_LABELS["kinematics_only"], ARM_LABELS["kinematics_geometry"]
     series = [
-        ("kinematics only · conditional",
+        (f"{kin} · per class",
          [c_map.get((c, "kinematics_only"), 0.0) for c in classes], arms[0][2], ""),
-        ("kinematics only · pooled",
+        (f"{kin} · shared",
          [p_map.get((c, "kinematics_only"), 0.0) for c in classes], arms[0][3], "///"),
-        ("kinematics + geometry · conditional",
+        (f"{geo} · per class",
          [c_map.get((c, "kinematics_geometry"), 0.0) for c in classes], arms[1][2], ""),
-        ("kinematics + geometry · pooled",
+        (f"{geo} · shared",
          [p_map.get((c, "kinematics_geometry"), 0.0) for c in classes], arms[1][3], "///"),
     ]
     for off, (lab, vals, color, hatch) in zip(offsets, series):
@@ -205,7 +205,7 @@ def build_figure(out_dir: Path) -> dict:
             )
     ax_b.set_xticks(x2)
     ax_b.set_xticklabels(classes)
-    ax_b.set_ylabel("DDR (%)")
+    ax_b.set_ylabel("Detection rate (%)")
     ax_b.set_ylim(0, 118)
     panel_label(ax_b, "b")
 

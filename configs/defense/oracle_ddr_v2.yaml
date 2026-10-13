@@ -1,0 +1,50 @@
+# End-of-track detection on the v2 (noisy) adversary sweep.
+# Same scorers and thresholds as the v1 recipe. Does not write into the v1 results.
+version: 1
+frozen: 2026-10-11
+
+condition: perfect_disguise_oracle
+far_target: 0.05
+
+oracle: configs/attacks/oracle.yaml
+presence: configs/defense/presence.yaml
+kinematics_sweep: configs/attacks/kinematics_v2.yaml
+engagement_geometry: configs/defense/engagement_geometry.yaml
+
+sweep:
+  freeze: results/adversary_motion_v2/FROZEN_SWEEP.json
+  points: results/adversary_motion_v2/tracks_points.parquet
+  meta: results/adversary_motion_v2/tracks_meta.json
+  cells: results/adversary_motion_v2/sweep_cells.parquet
+
+arms:
+  kinematics_only:
+    feature_arm: kinematics_only
+    freeze_path: results/behavior_model/FROZEN.json
+    far_summary: results/behavior_model/far_summary.json
+    windows_s: [120, 180, 300]
+    join_geometry: false
+  kinematics_geometry:
+    feature_arm: kinematics_geometry
+    freeze_path: results/behavior_model_geometry/FROZEN.json
+    far_summary: results/behavior_model_geometry/far_placement_summary.json
+    windows_s: [180, 300, 600]
+    join_geometry: true
+
+nc_tolerance:
+  factor: 2.0
+  slack: 0.05
+
+thin_n_threshold: 20
+envelope_routing: conditional
+
+output:
+  dir: results/oracle_ddr_v2
+  report: results/oracle_ddr_v2/oracle_ddr_report.md
+  summary: results/oracle_ddr_v2/oracle_ddr_summary.json
+  cells: results/oracle_ddr_v2/oracle_ddr_cells.parquet
+
+firewall_note: >
+  Hostile / adaptive trajectories are synthesized at evaluation only; the
+  benign-behavior scorer is never trained on them. Scores use purpose=eval
+  with track_meta role=hostile / source=synth.

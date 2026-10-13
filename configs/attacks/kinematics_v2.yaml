@@ -1,0 +1,94 @@
+# Adversary motion model v2 — same sweep as kinematics.yaml, plus AIS-fitted
+# helm wander, measurement noise, and a negative-control grid across mimic
+# speeds and bearing offsets. Outputs stay under results/adversary_motion_v2/
+# so the v1 freeze is untouched.
+version: 2
+frozen: 2026-10-11
+
+engagement_geometry: configs/defense/engagement_geometry.yaml
+placements: data/defense/placements.parquet
+placements_digest: data/defense/placements_digest.json
+
+# Noiseless fallback cadence. When noise.model is set, report gaps are drawn
+# from the fitted AIS interval distribution instead.
+thin_cadence_s: 60
+synth_dt_s: 1.0
+
+start_range_nm: 12.0
+terminal_range_nm: 0.3
+
+headline_placement_roles: [fit]
+include_far_only: false
+
+seed: 1337
+
+noise:
+  model: results/adversary_motion_v2/noise_model.json
+
+platforms:
+  magura_v5:
+    name: Magura V5
+    cruise_kn: 22.0
+    burst_kn: 42.0
+    range_nm: 450.0
+    citations:
+      - "STE MAGURA V5 manufacturer specification sheet, IDEF 2023"
+      - "Wertheim, USNI Proceedings 151(9), September 2025"
+      - "Sutton, Covert Shores (Ukrainian maritime drones overview)"
+  converted_skiff:
+    name: Converted fishing skiff (Houthi-class)
+    cruise_kn: 35.0
+    burst_kn: 45.0
+    range_nm: 150.0
+    citations:
+      - "Cardash, Counter-IED Report, Autumn 2024 (Toufan-1 35/41/52 kn)"
+      - "Ambrey Threat Circular, June 2024 (fishing-type hulls; ~2 nm RC handoff)"
+      - "Sutton, Covert Shores (Houthi Blowfish); Reuters 3 July 2024"
+
+dynamics:
+  max_turn_rate_dps: 8.0
+  max_accel_kn_per_s: 0.5
+
+plausibility_band:
+  straightness_min: 0.95
+  sog_thresholds_kn: [25, 30, 35, 40]
+  corpus_counts: [449, 212, 85, 40]
+  max_in_band_kn: 40.0
+
+sweep:
+  v_mimic_kn: [8, 12, 18, 25, 30, 35]
+  commit_range_nm: [0.5, 1.0, 2.0, 4.0]
+  bearing_offset_deg: [0, 15, 30, 45]
+  mimicked_classes: [fishing, recreational, sailing]
+  platforms: [magura_v5, converted_skiff]
+  include_unconstrained: true
+
+# Single-point defaults kept for readers of the v1 recipe. `grid` replaces
+# them: every mimic speed and bearing offset, no burst, commit held at 0.5 nm.
+negative_control:
+  v_mimic_kn: 8.0
+  commit_range_nm: 0.5
+  bearing_offset_deg: 0.0
+  use_burst_on_commit: false
+  grid:
+    v_mimic_kn: [8, 12, 18, 25, 30, 35]
+    bearing_offset_deg: [0, 15, 30, 45]
+    commit_range_nm: 0.5
+    use_burst_on_commit: false
+
+validity:
+  cadence_median_tol_s: 5.0
+  negative_control_far_factor: 2.0
+  negative_control_far_slack: 0.05
+  kinematics_far_summary: results/behavior_model/far_summary.json
+  geometry_far_summary: results/behavior_model_geometry/far_placement_summary.json
+  geometry_primary_window_s: 600
+  kinematics_windows_s: [300, 600]
+
+output:
+  dir: results/adversary_motion_v2
+  points: results/adversary_motion_v2/tracks_points.parquet
+  cells: results/adversary_motion_v2/sweep_cells.parquet
+  freeze: results/adversary_motion_v2/FROZEN_SWEEP.json
+  validity_report: results/adversary_motion_v2/validity_report.md
+  validity_summary: results/adversary_motion_v2/validity_summary.json

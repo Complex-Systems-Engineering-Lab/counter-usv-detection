@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Fig. 6 — FAR: kinematics calibrated targets + geometry placement FAR.
+"""Fig. 4 — walk-forward false-alarm rate on held-out encounters.
 
-Panel (a): kinematics test FAR at calibrated operating points.
-Panel (b): geometry placement FAR (operating vs sensitivity).
+Panel (a): realized any-time FAR at the 1%, 5%, and 10% targets, both checks.
+Panel (b): the 5% operating point by class.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "report"))
 
 from _common import (  # noqa: E402
+    ARM_LABELS,
     PAPER_DIR,
     apply_style,
     load_json,
@@ -24,121 +25,128 @@ from _common import (  # noqa: E402
     save_fig,
     verify_freezes,
 )
+from sequential_facts import SUMMARY, operating  # noqa: E402
 
-KIN_FAR = "results/behavior_model/far_summary.json"
-GEO_FAR = "results/behavior_model_geometry/far_placement_summary.json"
+
+ARMS = ("kinematics_only", "kinematics_geometry")
+ARM_COLORS = {"kinematics_only": "#4c78a8", "kinematics_geometry": "#54a24b"}
+TARGETS = (("0.01", "1%"), ("0.05", "5%"), ("0.1", "10%"))
+CLASSES = (
+    "fishing",
+    "recreational",
+    "sailing",
+)
 
 
 def build_figure(out_dir: Path) -> dict:
     import matplotlib.pyplot as plt
 
     apply_style()
-    kin = load_json(KIN_FAR)
-    geo = load_json(GEO_FAR)
+    summary = load_json(SUMMARY)
+    far = {"by_arm": {}}
+    alpha_keys = (("0.01", 0.01), ("0.05", 0.05), ("0.1", 0.10))
+    for arm in ARMS:
+        far["by_arm"][arm] = {}
+        for key, alpha in alpha_keys:
+            match = [
+                r for r in summary.get("curve") or []
+                if r.get("detector") == "per_checkpoint" and r.get("arm") == arm
+                and abs(float(r.get("alpha", -1)) - alpha) < 1e-9
+            ]
+            realized = match[0].get("far") if match else None
+            far["by_arm"][arm][key] = {"far": 0.0 if realized is None else realized}
+        benign = operating(summary, "per_checkpoint", arm, "benign")
+        far["by_arm"][arm]["0.05"]["by_class"] = {
+            c["asserted_class"]: {"far": c.get("detection"), "n": c.get("n")}
+            for c in benign.get("by_class") or []
+        }
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(9.2, 3.8))
 
-    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(9.0, 3.8))
-
-    # Panel a: overall + a few envelopes at FAR@1/5/10%
-    targets = [("far_0.01", 0.01), ("far_0.05", 0.05), ("far_0.1", 0.10)]
-    test = (kin.get("by_split") or {}).get("test") or {}
-    overall = (test.get("overall") or {}).get("at_calibrated") or {}
-    envelopes = test.get("envelopes") or {}
-    highlight = [
-        "fishing",
-        "recreational",
-        "sailing",
-        "passenger_ferry",
-        "cargo_merchant",
-    ]
-
-    x = np.arange(len(targets))
-    width = 0.12
-    ax_a.bar(
-        x - 2.5 * width,
-        [float(overall.get(k, np.nan)) * 100 for k, _ in targets],
-        width,
-        label="overall",
-        color="#333333",
-        edgecolor="#111111",
-        linewidth=0.5,
-    )
-    palette = ["#4c78a8", "#f58518", "#54a24b", "#e45756", "#b279a2"]
-    for i, env in enumerate(highlight):
-        block = (envelopes.get(env) or {}).get("at_calibrated") or {}
-        vals = [float(block.get(k, np.nan)) * 100 for k, _ in targets]
-        ax_a.bar(
-            x + (i - 1.5) * width,
+    x = np.arange(len(TARGETS))
+    width = 0.36
+    for i, arm in enumerate(ARMS):
+        vals = []
+        for key, _ in TARGETS:
+            row = (far.get("by_arm") or {}).get(arm, {}).get(key) or {}
+            vals.append(float(row.get("far") or 0.0) * 100.0)
+        offset = -width / 2 if i == 0 else width / 2
+        bars = ax_a.bar(
+            x + offset,
             vals,
             width,
-            label=env.replace("_", " "),
-            color=palette[i],
+            label=ARM_LABELS[arm],
+            color=ARM_COLORS[arm],
             edgecolor="#333333",
-            linewidth=0.4,
+            linewidth=0.5,
         )
-    # Target line markers
-    for j, (_, tgt) in enumerate(targets):
-        ax_a.hlines(
-            tgt * 100,
-            j - 0.45,
-            j + 0.45,
-            colors="#888888",
-            linestyles=":",
-            linewidth=1.0,
-        )
+        for bar, v in zip(bars, vals):
+            ax_a.text(
+                bar.get_x() + bar.get_width() / 2,
+                v + 0.3,
+                f"{v:.1f}",
+                ha="center",
+                va="bottom",
+                fontsize=7,
+            )
+    for j, (key, _) in enumerate(TARGETS):
+        tgt = float(key) * 100.0
+        ax_a.hlines(tgt, j - 0.45, j + 0.45, colors="#888888", linestyles=":", linewidth=1.0)
     ax_a.set_xticks(x)
-    ax_a.set_xticklabels(["@1%", "@5%", "@10%"])
-    ax_a.set_ylabel("Realized FAR (%)")
+    ax_a.set_xticklabels([label for _, label in TARGETS])
+    ax_a.set_ylabel("Realized false-alarm rate (%)")
     panel_label(ax_a, "a")
-    ax_a.set_ylim(0, 14)
-    ax_a.legend(frameon=False, fontsize=7, ncol=2, loc="upper left")
+    ax_a.legend(frameon=False, fontsize=8, loc="upper left")
 
-    # Panel b: placement FAR
-    placements = geo.get("by_placement_class_test") or []
-    operating = set(geo.get("operating_placements") or [])
-    names = [p["placement_class"] for p in placements]
-    fars = [float(p["far"]) * 100 for p in placements]
-    colors = [
-        "#54a24b" if n in operating else "#bbbbbb" for n in names
-    ]
-    bars = ax_b.bar(
-        range(len(names)),
-        fars,
-        color=colors,
-        edgecolor="#333333",
-        linewidth=0.6,
-    )
-    for bar, v, p in zip(bars, fars, placements):
-        ax_b.text(
-            bar.get_x() + bar.get_width() / 2,
-            v + 0.3,
-            f"{v:.1f}\nn={p['n_scored']}",
-            ha="center",
-            va="bottom",
-            fontsize=7,
+    by_class = {}
+    peak = 5.0
+    for arm in ARMS:
+        block = ((far.get("by_arm") or {}).get(arm) or {}).get("0.05") or {}
+        by_class[arm] = (block.get("by_class") or {})
+        for cls in CLASSES:
+            peak = max(peak, float((by_class[arm].get(cls) or {}).get("far") or 0.0) * 100.0)
+    x2 = np.arange(len(CLASSES))
+    w2 = 0.36
+    for i, arm in enumerate(ARMS):
+        vals = []
+        for cls in CLASSES:
+            raw = (by_class[arm].get(cls) or {}).get("far")
+            vals.append(0.0 if raw is None else float(raw) * 100.0)
+        offset = -w2 / 2 if i == 0 else w2 / 2
+        bars = ax_b.bar(
+            x2 + offset,
+            vals,
+            w2,
+            label=ARM_LABELS[arm],
+            color=ARM_COLORS[arm],
+            edgecolor="#333333",
+            linewidth=0.5,
         )
+        for bar, v in zip(bars, vals):
+            ax_b.text(
+                bar.get_x() + bar.get_width() / 2,
+                v + 0.2,
+                f"{v:.1f}",
+                ha="center",
+                va="bottom",
+                fontsize=7,
+            )
     ax_b.axhline(5.0, color="#888888", linestyle=":", linewidth=1.0)
-    ax_b.set_xticks(range(len(names)))
-    ax_b.set_xticklabels(
-        [n.replace("_", "\n") for n in names], fontsize=8
-    )
-    ax_b.set_ylabel("FAR (%)")
+    ax_b.set_xticks(x2)
+    ax_b.set_xticklabels([c.replace("_", "\n") for c in CLASSES], fontsize=7)
+    ax_b.set_ylabel("False-alarm rate at 5% (%)")
     panel_label(ax_b, "b")
-    ax_b.set_ylim(0, max(fars + [5.0]) * 1.40)
-    # Legend proxies
-    from matplotlib.patches import Patch
+    ax_b.set_ylim(0, peak * 1.25)
+    ax_b.legend(frameon=False, fontsize=8, loc="upper right")
 
-    ax_b.legend(
-        handles=[
-            Patch(facecolor="#54a24b", edgecolor="#333333", label="operating"),
-            Patch(facecolor="#bbbbbb", edgecolor="#333333", label="sensitivity"),
-        ],
-        frameon=False,
-        fontsize=8,
-        loc="upper right",
-    )
+    ymax_a = 0.0
+    for arm in ARMS:
+        for key, _ in TARGETS:
+            row = (far.get("by_arm") or {}).get(arm, {}).get(key) or {}
+            ymax_a = max(ymax_a, float(row.get("far") or 0.0) * 100.0)
+    ax_a.set_ylim(0, max(ymax_a, 10.0) * 1.35)
 
     fig.tight_layout()
-    return save_fig(fig, "fig6_far", out_dir=out_dir)
+    return save_fig(fig, "fig4_far", out_dir=out_dir)
 
 
 def main() -> int:

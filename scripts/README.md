@@ -24,11 +24,11 @@ thin runnable layer on top.
 
 **behavior/** — `build_benign_corpus` · `build_class_envelope_map` · `extract_windowed_features` · `fit_behavior_model` · `fit_geometry_model` · `freeze_behavior_model` · `validate_benign_far` · `validate_geometry_far` · `run_label_swap`
 
-**defense/** — `smoke_pipeline` · `smoke_presence` · `run_oracle_ddr` · `run_adaptive_cost` · `freeze_defense`
+**defense/** — `smoke_pipeline` · `smoke_presence` · `materialize_placements` · `extract_geometry_features` · `run_oracle_ddr` · `run_adaptive_cost` · `run_score_series` · `calibrate_sequential` · `run_sequential_eval` · `freeze_defense`
 
-**attacks/** — `render_marine_eot_grid` · `smoke_patch_core` · `run_evasion` · `run_disguise` · `run_transfer` · `run_oracle` · `freeze_attacks` · `generate_adversary_tracks` · `validate_adversary_motion` · `sync_*_runpod.sh` · `setup_runpod_*.sh`
+**attacks/** — `render_marine_eot_grid` · `smoke_patch_core` · `run_evasion` · `run_disguise` · `run_transfer` · `run_oracle` · `freeze_attacks` · `estimate_track_noise` · `generate_adversary_tracks` · `audit_realism` · `validate_adversary_motion` · `generate_replay_attacks` · `sync_*_runpod.sh` · `setup_runpod_*.sh`
 
-**report/** — `build_all` · `fig_rq1_feasibility` · `fig_rq2_ddr_gap` · `fig_label_swap` · `fig_rq3_cost_warning` · `fig_far` · `fig_supp_severity` · `fig_supp_pooled_gap` · `captions` (system diagram is local, not tracked)
+**report/** — `build_all` · `fig_rq1_feasibility` · `fig_rq2_ddr_gap` · `fig_label_swap` · `fig_rq3_cost_warning` · `fig_far` · `fig_supp_severity` · `fig_supp_pooled_gap` · `captions` · `baseline_comparison` · `class_value_comparison` · `fixed_speed_comparison` · `offset_comparison` (system diagram is local, not tracked)
 
 **release/** — `build_bundle` (weight-free data/results archive → `dist/release/`)
 
@@ -292,12 +292,21 @@ Kinematics-only envelopes under `results/behavior_model/` are left untouched.
 ```bash
 python scripts/behavior/fit_geometry_model.py
 python scripts/behavior/fit_geometry_model.py --smoke --envelope recreational
+python scripts/behavior/fit_geometry_model.py \
+    --config configs/defense/behavior_model_geometry_v3.yaml \
+    --out results/behavior_model_geometry_v3
 ```
 
-Writes `results/behavior_model_geometry/envelopes/<name>.joblib`,
-`fit_summary.json`, `fit_report.md`, and `FROZEN.json` (scorer-compatible).
-Recipe: `configs/defense/behavior_model_geometry.yaml`. Pipeline selects this
-arm via `feature_arm: kinematics_geometry` in `configs/defense/pipeline.yaml`.
+Writes `envelopes/<name>.joblib`, `fit_summary.json`, `fit_report.md`, and
+`FROZEN.json` under `--out` (default `results/behavior_model_geometry/`).
+`FROZEN.json` records each bundle under that same directory. Scoring loads
+the directory named there, so a later fit has to be written with its own
+`--out` rather than reuse an earlier directory's paths. The default recipe is
+`configs/defense/behavior_model_geometry.yaml`. The v3 recipe
+(`behavior_model_geometry_v3.yaml`) reads features from
+`data/defense/geometry_v3/` and must be written to
+`results/behavior_model_geometry_v3/`. Pipeline selects this arm via
+`feature_arm: kinematics_geometry` in `configs/defense/pipeline.yaml`.
 
 ## `behavior/validate_geometry_far.py` — placement-swept FAR gate
 
@@ -433,6 +442,11 @@ one record per figure to `CAPTIONS.json`:
 
 Numbers are read from the same pinned summaries the figures plot, so a caption
 cannot drift from its panel; `CAPTIONS.md` is a rendering of the same records.
+Walk-forward captions read `scripts/report/sequential_facts.py`. The comparison
+tables (`baseline_comparison.py`, `class_value_comparison.py`,
+`fixed_speed_comparison.py`, `offset_comparison.py`) are documented with the
+replay evaluation below.
+
 Where a caption asserts a relation rather than a value (Fig. S1: black-box
 severity never reaches a white/grey L0 baseline) the build fails if new data
 breaks it.
@@ -541,6 +555,216 @@ Outputs: `results/adaptive_cost/adaptive_cost_{joined,curves,warning}.parquet`,
 `adaptive_cost_report.md`, `adaptive_cost_summary.json`.
 
 Unit tests: `PYTHONPATH=src python -m pytest tests/test_adaptive_cost.py`.
+
+## Replays and the walk-forward evaluation
+
+The reported attacker is the replay. A held-out real AIS approach is followed
+until it first comes inside a commit range, then a synthetic straight run-in to
+0.3 nm replaces the rest of the track, at the class 95th-percentile speed
+(`class_plausible`) or at a hull burst speed (`magura_v5`, `converted_skiff`).
+Each replay uses the window of the benign encounter of the same track and asset,
+so the real prefix is the benign walk up to the commit. Commits of 0.5 to 4 nm
+are the imitating approaches; 6 and 12 nm are the sprint.
+
+```bash
+# Replays at commits 0.5, 1, 2, 4, 6, 12 nm; run-in reports spaced like the source track
+python scripts/attacks/generate_replay_attacks.py
+# Sparse-report check: the same test replays, run-in spaced by the training report intervals
+python scripts/attacks/generate_replay_attacks.py --gap-source training --splits test \
+    --out-dir results/adversary_replay_v3_sparse
+```
+
+Writes `cells.parquet`, `tracks_points.parquet`, and `FROZEN.json` under
+`results/adversary_replay_v3/` (and `_sparse/`). Library:
+`counterusv.attacks.replay`. Unit tests: `tests/test_replay_attack.py`.
+
+Walk every encounter (checkpoints every 60 s), calibrate the per-checkpoint
+class cutoffs on validation benign encounters, then evaluate. The reported
+checks are the per-class cutoffs (`--model rules`, written to
+`results/causal_v3_rules/`); the commands below, with the default
+`--model gmm`, write the mixture comparison to `results/causal_v3/`. Run the
+same five commands with `--model rules` and `results/causal_v3_rules/` paths
+for the reported numbers.
+
+```bash
+python scripts/defense/run_score_series.py benign --workers 8 \
+    --oracle-config configs/defense/oracle_ddr_v3.yaml \
+    --engagement configs/defense/engagement_geometry_v3.yaml \
+    --out results/causal_v3/benign_checkpoints.parquet
+python scripts/defense/run_score_series.py attacks --role replay --workers 8 \
+    --oracle-config configs/defense/oracle_ddr_v3.yaml \
+    --engagement configs/defense/engagement_geometry_v3.yaml \
+    --points results/adversary_replay_v3/tracks_points.parquet \
+    --cells results/adversary_replay_v3/cells.parquet \
+    --out results/causal_v3/replay_checkpoints.parquet
+# repeat with the _sparse set into results/causal_v3/replay_sparse_checkpoints.parquet
+python scripts/defense/calibrate_sequential.py \
+    --benign results/causal_v3/benign_checkpoints.parquet --out results/causal_v3/FROZEN.json
+python scripts/defense/run_sequential_eval.py \
+    --benign results/causal_v3/benign_checkpoints.parquet \
+    --replays results/causal_v3/replay_checkpoints.parquet \
+    --replays-sparse results/causal_v3/replay_sparse_checkpoints.parquet \
+    --recipe results/causal_v3/FROZEN.json --out-dir results/causal_v3
+```
+
+`calibrate_sequential.py` writes only the per-checkpoint rule: each class cutoff
+sits at the validation 5% any-time false-alarm point. By default
+(`--class-routing conditional`) a class with fewer than 50 scoreable
+validation encounters uses the arm-level cutoff, and a class with enough
+encounters keeps its own. `--class-routing pooled_all` assigns that arm-level
+cutoff to every class, including recreational and sailing. The two routings
+are not the same: the thin-class fallback leaves a large class's cutoff in
+place, and the one-cutoff routing replaces it. Nothing is tuned on attacks.
+The reported numbers use the default. The class-value comparison rescores the
+same `results/causal_v3_rules/` checkpoints with `pooled_all`:
+
+```bash
+python scripts/defense/calibrate_sequential.py \
+    --benign results/causal_v3_rules/benign_checkpoints.parquet \
+    --out results/causal_v3_rules_pooled/FROZEN.json \
+    --class-routing pooled_all --version rules_pooled
+python scripts/defense/run_sequential_eval.py \
+    --benign results/causal_v3_rules/benign_checkpoints.parquet \
+    --replays results/causal_v3_rules/replay_checkpoints.parquet \
+    --replays-sparse results/causal_v3_rules/replay_sparse_checkpoints.parquet \
+    --recipe results/causal_v3_rules_pooled/FROZEN.json \
+    --out-dir results/causal_v3_rules_pooled
+python scripts/report/class_value_comparison.py
+```
+
+`run_sequential_eval.py` writes `summary.json`, `report.md`, and
+`rates.parquet`: detection, flags before the commit (false alarms on the real
+prefix), warning after the commit beside the run-in duration that bounds it,
+replays by commit range, the benign close-approach false-alarm rate, and a
+check that replay scores before the commit equal the benign walk. Each rate
+carries a 95% Wilson interval that counts each source trip once
+(`*_ci95_trips`). `--attacks`
+adds the parametric sweep as an audit record; it is not reported. The benign
+encounter list is read from `geometry_path_template` on the behavior-model
+recipe named by the geometry arm's freeze, so a v3 walk uses
+`data/defense/geometry_v3/` and the bundles under
+`results/behavior_model_geometry_v3/envelopes/`. Library:
+`counterusv.eval.sequential`. Unit tests: `tests/test_sequential_eval.py`.
+
+`results/causal_v3/ring_gate/` points at the earlier geometry freeze
+(`results/behavior_model_geometry/`) and is not cited.
+`loose_gate/` and `refit_model/` name the v3 freeze but their checkpoint
+files were written while that freeze still listed the earlier bundles; do
+not cite them. The mixture numbers are the files written in
+`results/causal_v3/` after the v3 manifest lists
+`results/behavior_model_geometry_v3/envelopes/`. The paper figures and
+captions read `results/causal_v3_rules/summary.json`
+(`scripts/report/sequential_facts.py`, `SUMMARY`).
+
+`--model` selects the scorer. `rules` is the reported check: it replaces the
+track arm's score with `sog_p95` and the asset-relative arm's score with
+`closing_rate_p90_kn` (`speed_rule` and `closing_rule` apply one each). A
+rule abstains wherever the mixture abstains, and its threshold is zero so
+calibration sets the cutoff in knots. `gmm`, `mahalanobis`, and
+`isolation_forest` are the comparison scorers fit in the same envelopes.
+Nothing is tuned on the replays. The comparison scorers go under
+`results/causal_v3_baselines/`:
+
+```bash
+python scripts/defense/run_score_series.py benign --workers 6 --model mahalanobis \
+    --oracle-config configs/defense/oracle_ddr_v3.yaml \
+    --engagement configs/defense/engagement_geometry_v3.yaml \
+    --out results/causal_v3_baselines/mahalanobis/benign_checkpoints.parquet
+python scripts/defense/run_score_series.py attacks --role replay --workers 6 --model mahalanobis \
+    --oracle-config configs/defense/oracle_ddr_v3.yaml \
+    --engagement configs/defense/engagement_geometry_v3.yaml \
+    --points results/adversary_replay_v3/tracks_points.parquet \
+    --cells results/adversary_replay_v3/cells.parquet \
+    --out results/causal_v3_baselines/mahalanobis/replay_checkpoints.parquet
+python scripts/defense/calibrate_sequential.py \
+    --benign results/causal_v3_baselines/mahalanobis/benign_checkpoints.parquet \
+    --out results/causal_v3_baselines/mahalanobis/FROZEN.json --version mahalanobis
+python scripts/defense/run_sequential_eval.py \
+    --benign results/causal_v3_baselines/mahalanobis/benign_checkpoints.parquet \
+    --replays results/causal_v3_baselines/mahalanobis/replay_checkpoints.parquet \
+    --recipe results/causal_v3_baselines/mahalanobis/FROZEN.json \
+    --out-dir results/causal_v3_baselines/mahalanobis
+```
+
+Repeat with `--model isolation_forest`. Then:
+
+```bash
+python scripts/report/baseline_comparison.py \
+    --gmm results/causal_v3/summary.json \
+    --mahalanobis results/causal_v3_baselines/mahalanobis/summary.json \
+    --isolation-forest results/causal_v3_baselines/isolation_forest/summary.json \
+    --rules results/causal_v3_rules/summary.json
+```
+
+**Attacker below the speed cutoff.** The class-speed run-in (30.3 kn under a
+recreational label) is above the calibrated recreational speed cutoff
+(21.9 kn), so a speed threshold catches it by construction. The fixed-speed
+sets run in at 10, 15, and 20 kn under every claimed class, from the same
+test sources and commits. Each scorer keeps the cutoffs calibrated on its own
+benign walks; these replays are scored only. The evaluation files the
+fixed-speed run-ins under its non-class-speed (`replay_burst`) strata.
+
+```bash
+for s in 10 15 20; do
+  python scripts/attacks/generate_replay_attacks.py --fixed-speeds $s --splits test \
+      --out-dir results/adversary_replay_v3_fixed/${s}kn
+done
+# For each scorer (rules with results/causal_v3_rules, gmm with results/causal_v3,
+# or a baseline directory) and speed:
+python scripts/defense/run_score_series.py attacks --role replay --workers 6 --model rules \
+    --oracle-config configs/defense/oracle_ddr_v3.yaml \
+    --engagement configs/defense/engagement_geometry_v3.yaml \
+    --points results/adversary_replay_v3_fixed/20kn/tracks_points.parquet \
+    --cells results/adversary_replay_v3_fixed/20kn/cells.parquet \
+    --out results/causal_v3_fixed/rules/20kn/replay_checkpoints.parquet
+python scripts/defense/run_sequential_eval.py \
+    --benign results/causal_v3_rules/benign_checkpoints.parquet \
+    --replays results/causal_v3_fixed/rules/20kn/replay_checkpoints.parquet \
+    --recipe results/causal_v3_rules/FROZEN.json \
+    --out-dir results/causal_v3_fixed/rules/20kn --skip-curve
+python scripts/report/fixed_speed_comparison.py
+```
+
+The one-cutoff comparison scores those same fixed-speed checkpoints with
+`results/causal_v3_rules_pooled/FROZEN.json` and writes
+`results/causal_v3_fixed/rules_pooled/${s}kn`. `class_value_comparison.py`
+reads the class-cutoff and one-cutoff summaries together.
+
+**Off-axis run-ins.** A straight run-in closes at about its speed, so a
+closing-rate cutoff and a speed cutoff are not separated. The offset grid
+(`configs/attacks/replay_offsets.yaml`) adds two shapes on the same test
+sources and commits. A capped leg holds a fixed angle off the bearing to the
+asset, so the closing rate stays near speed times cos(angle); `_t1` variants
+turn straight in at 1 nm. A dog-leg runs straight to a point 1 or 2 nm abeam
+of the asset, then turns in. Dog-leg commits inside that abeam distance are
+skipped. Turns are limited to 8 deg/s. The frozen speed and closing-rate
+cutoffs are not refit. `either` is the union of the two checks, over encounters
+either one can score.
+
+```bash
+python scripts/attacks/generate_replay_attacks.py \
+    --geometry-config configs/attacks/replay_offsets.yaml --splits test \
+    --out-dir results/adversary_replay_v3_offset
+for v in capped20kn_a45 capped20kn_a45_t1 capped20kn_a60 capped20kn_a60_t1 \
+        capped30kn_a60 capped30kn_a60_t1 capped30kn_a70 capped30kn_a70_t1 \
+        dogleg20kn_d1 dogleg20kn_d2 dogleg30kn_d1 dogleg30kn_d2; do
+  python scripts/defense/run_score_series.py attacks --role replay --workers 6 --model rules \
+      --oracle-config configs/defense/oracle_ddr_v3.yaml \
+      --engagement configs/defense/engagement_geometry_v3.yaml \
+      --points results/adversary_replay_v3_offset/${v}/tracks_points.parquet \
+      --cells results/adversary_replay_v3_offset/${v}/cells.parquet \
+      --out results/causal_v3_offset/rules/${v}/replay_checkpoints.parquet
+  python scripts/defense/run_sequential_eval.py \
+      --benign results/causal_v3_rules/benign_checkpoints.parquet \
+      --replays results/causal_v3_offset/rules/${v}/replay_checkpoints.parquet \
+      --recipe results/causal_v3_rules/FROZEN.json \
+      --out-dir results/causal_v3_offset/rules/${v} --skip-curve
+done
+python scripts/report/offset_comparison.py
+```
+
+The either arm is also written when `run_sequential_eval.py` is run on the
+straight class-speed and fixed-speed replays, using the same frozen cutoffs.
 
 ## Engagement geometry — defended-asset contract
 
@@ -884,7 +1108,11 @@ python scripts/release/build_bundle.py --verify   # checksums + no-weights
 ```
 
 Companion to the GitHub code DOI: this archive is the data/results Zenodo deposit.
-Model weights are withheld (see `docs/DUAL_USE.md`).
+Model weights are withheld (see `docs/DUAL_USE.md`). The staged sequential
+results include the class-speed rules, the fixed-speed rules, and the off-axis
+replay summaries (`results/causal_v3_rules`, `results/causal_v3_fixed/rules`,
+`results/causal_v3_offset`, and `results/adversary_replay_v3_offset` manifests
+and cell tables). Score checkpoints and replay point tracks are not staged.
 
 ## `attacks/render_marine_eot_grid.py` — marine-EOT sample grid
 
@@ -1052,6 +1280,24 @@ python scripts/attacks/freeze_attacks.py --skip-gallery   # digests + notes only
 Writes `results/attacks/FROZEN.json`, `RELEASE_NOTES.md`, `REDACTION.md`, and
 `artifact_v1/gallery/` (composited scenes — not printable patch templates).
 
+## `attacks/estimate_track_noise.py` — AIS noise and helm-wander fit
+
+Fits measurement noise and helm wander on train-split trips only. Measurement
+noise is the three-point residual on near-straight moving segments (position
+in metres, speed in knots, course in degrees by speed band). Helm wander is an
+Ornstein–Uhlenbeck fit to the detrended smoothed heading and speed, per claimed
+class plus a pooled fallback. The file also records each class's
+95th-percentile trip speed, which tags whether a mimic speed is plausible for
+that class. `configs/attacks/kinematics_v2.yaml` and `kinematics_v3.yaml` both
+point their noise model at this file.
+
+```bash
+python scripts/attacks/estimate_track_noise.py
+python scripts/attacks/estimate_track_noise.py --max-trips 400
+```
+
+Writes `results/adversary_motion_v2/noise_model.json`.
+
 ## `attacks/generate_adversary_tracks.py` — hostile / adaptive motion sweep
 
 Materializes the eval-only two-phase adversary motion model relative to frozen
@@ -1083,3 +1329,19 @@ python scripts/attacks/validate_adversary_motion.py --smoke
 
 Writes `results/adversary_motion/validity_report.md` + `validity_summary.json`.
 Unit tests: `PYTHONPATH=src python -m pytest tests/test_adversary_kinematics.py`.
+
+## `attacks/audit_realism.py` — window-matched realism audit
+
+Compares sliding windows of the generated v2 tracks with real kinematic and
+geometry windows. Tolerances are the acceptance levels in
+`configs/attacks/kinematics_v3.yaml`. The script reports pass/fail against
+those levels and whether a straight-leg change or a helm refit is supported.
+It does not score attacks.
+
+```bash
+python scripts/attacks/audit_realism.py
+python scripts/attacks/audit_realism.py --skip-ablation
+```
+
+Writes `results/adversary_motion_v2/realism_audit.json`. Library:
+`counterusv.attacks.realism`.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fig. 4 — Real-track label-swap flag-rate heatmap + matched control.
+"""Fig. S3 — Real-track label-swap flag-rate heatmap + matched control.
 
 Source: ``results/label_swap/label_swap_summary.json`` (defense-freeze pinned).
 Headline arm: kinematics_only. Thin-n cells (n < 20) are hatched.
@@ -149,7 +149,7 @@ def build_figure(out_dir: Path) -> dict:
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cbar.set_label("Flag rate (%)")
     fig.tight_layout()
-    return save_fig(fig, "fig4_label_swap", out_dir=out_dir)
+    return save_fig(fig, "figS3_label_swap", out_dir=out_dir)
 
 
 def main() -> int:

@@ -94,6 +94,29 @@ def test_transit_past_inbound_leg_ends_at_cpa():
     assert feat["closing_rate_med_kn"] > 0
 
 
+def test_reports_before_entry_make_a_run_scoreable_on_entry():
+    history = {**INBOUND, "include_reports_before_entry": True}
+    # Straight run from 9 nm; the first report inside 6 nm is the last one.
+    pts = _track([9.0, 8.0, 7.0, 5.9])
+    assert geometry_features_from_points(pts, *ASSET, annulus=ANNULUS, inbound_leg=INBOUND) is None
+    feat = geometry_features_from_points(pts, *ASSET, annulus=ANNULUS, inbound_leg=history)
+    assert feat is not None
+    assert feat["n_points_in_annulus"] == 1
+    assert feat["inbound_leg_persistence_s"] == pytest.approx(180.0)
+    assert feat["closing_rate_med_kn"] == pytest.approx(60.0, rel=0.05)
+    # Still abstains with no report inside the annulus.
+    assert geometry_features_from_points(
+        _track([10.0, 9.0, 8.0, 7.0]), *ASSET, annulus=ANNULUS, inbound_leg=history
+    ) is None
+
+
+def test_reports_before_entry_still_need_history_before_cpa():
+    history = {**INBOUND, "include_reports_before_entry": True}
+    assert geometry_features_from_points(
+        _track([7.0, 5.0, 4.0]), *ASSET, annulus=ANNULUS, inbound_leg=history
+    ) is None
+
+
 def test_never_imputes_zeros_on_abstain():
     pts = _track([12.0, 11.0, 10.0, 9.0])
     assert geometry_features_from_points(pts, *ASSET) is None

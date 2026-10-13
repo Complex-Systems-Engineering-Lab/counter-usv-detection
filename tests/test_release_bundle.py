@@ -15,6 +15,8 @@ sys.path.insert(0, str(REPO_ROOT / "scripts" / "data"))
 
 from build_bundle import (  # noqa: E402
     RESULTS_EXACT,
+    RESULTS_TREES,
+    SKIP_RESULT_NAMES,
     drop_mmsi,
     find_redacted,
     strip_mcships_coco,
@@ -44,10 +46,25 @@ def test_results_exact_includes_pooled_ablation() -> None:
         "results/oracle_ddr_pooled/oracle_ddr_summary.json",
         "results/oracle_ddr_pooled/oracle_ddr_report.md",
         "results/oracle_ddr_pooled/oracle_ddr_cells.parquet",
+        "results/causal_v3_rules_pooled/FROZEN.json",
+        "results/causal_v3_rules_pooled/summary.json",
+        "results/causal_v3_rules_pooled/class_value.json",
+        "results/causal_v3_fixed/rules_pooled/15kn/summary.json",
+        "results/causal_v3_fixed/comparison.md",
     ):
         assert rel in RESULTS_EXACT, rel
-    # Envelope joblibs stay withheld (weights policy).
+    trees = dict(RESULTS_TREES)
+    for rel in (
+        "results/causal_v3_rules",
+        "results/causal_v3_fixed/rules",
+        "results/causal_v3_offset",
+        "results/adversary_replay_v3_offset",
+    ):
+        assert rel in trees, rel
+    # Envelope joblibs, score checkpoints, and point tracks stay withheld.
     assert not any("envelopes/" in r or r.endswith(".joblib") for r in RESULTS_EXACT)
+    assert "tracks_points.parquet" in SKIP_RESULT_NAMES
+    assert "replay_checkpoints.parquet" in SKIP_RESULT_NAMES
 
 
 def test_drop_mmsi_parquet_and_csv(tmp_path: Path) -> None:

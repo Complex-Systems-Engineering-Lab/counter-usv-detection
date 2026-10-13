@@ -170,6 +170,90 @@ def test_sweep_digest_stable():
     assert len(c1) == 2 * (1 + 2)  # nc + 2 sweep per asset
 
 
+def _noise_model() -> dict:
+    return {
+        "measurement": {
+            "position_sigma_m": 8.0,
+            "sog_sigma_kn": 0.4,
+            "cog_sigma_deg_by_sog_band": {
+                "0_5": {"sigma": 4.0, "n": 10},
+                "5_12": {"sigma": 3.0, "n": 10},
+                "12_20": {"sigma": 2.0, "n": 10},
+                "20_80": {"sigma": 1.5, "n": 10},
+            },
+        },
+        "report_interval_s": {
+            "quantiles": {
+                "p5": 60.0, "p10": 60.0, "p25": 90.0, "p50": 120.0,
+                "p75": 180.0, "p90": 180.0, "p95": 240.0,
+            },
+        },
+        "helm_wander": {
+            "heading_deg": {"pooled": {"tau_s": 120.0, "sigma_per_sqrt_s": 0.4, "n_segments": 10, "n_points": 100}},
+            "speed_kn": {"pooled": {"tau_s": 120.0, "sigma_per_sqrt_s": 0.05, "n_segments": 10, "n_points": 100}},
+        },
+        "class_speed_p95_kn": {
+            "fishing": {"p95_of_trip_p95_sog_kn": 16.0, "n_trips": 10},
+            "recreational": {"p95_of_trip_p95_sog_kn": 30.0, "n_trips": 10},
+            "sailing": {"p95_of_trip_p95_sog_kn": 9.0, "n_trips": 10},
+        },
+    }
+
+
+def test_noise_is_reproducible_and_changes_the_track():
+    cfg = {
+        "synth_dt_s": 1.0,
+        "thin_cadence_s": 60.0,
+        "start_range_nm": 6.0,
+        "terminal_range_nm": 0.3,
+        "seed": 7,
+        "dynamics": {"max_turn_rate_dps": 8.0, "max_accel_kn_per_s": 0.5},
+        "plausibility_band": {"max_in_band_kn": 40.0},
+        "noise": _noise_model(),
+    }
+    cell = _cell(v_mimic_kn=12.0, commit_range_nm=2.0)
+    a = generate_two_phase_track(*ASSET, cell, _platform(), cfg=cfg)
+    b = generate_two_phase_track(*ASSET, cell, _platform(), cfg=cfg)
+    assert np.allclose(a.points["lat"], b.points["lat"])
+    assert np.allclose(a.points["t"], b.points["t"])
+    quiet = dict(cfg)
+    quiet.pop("noise")
+    c = generate_two_phase_track(*ASSET, cell, _platform(), cfg=quiet)
+    # Reporting gaps from the fitted interval table, not a fixed 60 s thin.
+    assert float(np.median(np.diff(a.points["t"]))) > 70.0
+    assert not np.allclose(a.points["lat"].to_numpy()[:5], c.points["lat"].to_numpy()[:5])
+
+
+def test_negative_control_grid_expands_cells():
+    cfg = load_kinematics_config()
+    cfg = dict(cfg)
+    cfg["sweep"] = {
+        "v_mimic_kn": [8],
+        "commit_range_nm": [2.0],
+        "bearing_offset_deg": [0.0],
+        "mimicked_classes": ["fishing"],
+        "platforms": ["magura_v5"],
+        "include_unconstrained": False,
+    }
+    cfg["negative_control"] = {
+        "grid": {
+            "v_mimic_kn": [8, 12],
+            "bearing_offset_deg": [0, 15],
+            "commit_range_nm": 0.5,
+            "use_burst_on_commit": False,
+        }
+    }
+    cfg["seed"] = 1
+    assets = pd.DataFrame([{
+        "asset_id": "a1", "lat": 25.0, "lon": -80.0, "role": "fit", "valid": True,
+    }])
+    cells = cells_to_frame(build_sweep_cells(cfg, assets, approach_bearings={"a1": 10.0}))
+    nc = cells.loc[cells["negative_control"]]
+    assert len(nc) == 4
+    assert set(nc["v_mimic_kn"]) == {8.0, 12.0}
+    assert set(nc["use_burst_on_commit"]) == {False}
+
+
 def test_feature_round_trip_berth_approach():
     cfg = {
         "synth_dt_s": 1.0,
@@ -199,3 +283,29 @@ def test_feature_round_trip_berth_approach():
     assert geo is not None
     assert geo["geometry_usable"] is True
     assert geo["n_points_in_annulus"] >= 4
+
+
+def test_straight_aim_holds_course_where_the_offset_spirals():
+    cfg = {
+        "synth_dt_s": 1.0,
+        "thin_cadence_s": 20.0,
+        "start_range_nm": 4.0,
+        "terminal_range_nm": 0.3,
+        "seed": 3,
+        "dynamics": {"max_turn_rate_dps": 8.0, "max_accel_kn_per_s": 0.5},
+        "plausibility_band": {"max_in_band_kn": 40.0},
+    }
+    cell = _cell(v_mimic_kn=18.0, commit_range_nm=1.5, bearing_offset_deg=30.0, use_burst_on_commit=False)
+    spiral = generate_two_phase_track(*ASSET, cell, _platform(), cfg=cfg)
+    straight = generate_two_phase_track(*ASSET, cell, _platform(), cfg={**cfg, "mimic_leg": "straight_aim"})
+
+    def _course_spread(pts: pd.DataFrame) -> float:
+        ranges = [
+            range_nm(float(a), float(b), ASSET[0], ASSET[1])
+            for a, b in zip(pts["lat"], pts["lon"])
+        ]
+        mimic = pts.loc[np.asarray(ranges) > 1.5]
+        return float(np.std(mimic["cog"])) if len(mimic) > 2 else 999.0
+
+    assert _course_spread(straight.points) < 5.0
+    assert _course_spread(spiral.points) > _course_spread(straight.points) + 5.0

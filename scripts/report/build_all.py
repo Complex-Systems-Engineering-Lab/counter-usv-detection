@@ -57,20 +57,20 @@ def run(out_dir: Path, *, skip_verify: bool) -> dict:
     print("[build] Fig. 3 RQ2 DDR gap …")
     figures["fig3_rq2_ddr_gap"] = build_rq2(out_dir)
 
-    print("[build] Fig. 4 label-swap …")
-    figures["fig4_label_swap"] = build_label_swap(out_dir)
+    print("[build] Fig. 4 FAR …")
+    figures["fig4_far"] = build_far(out_dir)
 
     print("[build] Fig. 5 RQ3 cost + warning …")
     figures["fig5_rq3_cost_warning"] = build_rq3(out_dir)
-
-    print("[build] Fig. 6 FAR …")
-    figures["fig6_far"] = build_far(out_dir)
 
     print("[build] Fig. S1 severity …")
     figures["figS1_severity"] = build_s1(out_dir)
 
     print("[build] Fig. S2 pooled-vs-conditional …")
     figures["figS2_pooled_gap"] = build_s2(out_dir)
+
+    print("[build] Fig. S3 label-swap …")
+    figures["figS3_label_swap"] = build_label_swap(out_dir)
 
     print("[build] captions …")
     captions = write_captions(out_dir)
@@ -106,11 +106,11 @@ def main() -> int:
             expected = [
                 "fig2_rq1_feasibility.png",
                 "fig3_rq2_ddr_gap.png",
-                "fig4_label_swap.png",
+                "fig4_far.png",
                 "fig5_rq3_cost_warning.png",
-                "fig6_far.png",
                 "figS1_severity.png",
                 "figS2_pooled_gap.png",
+                "figS3_label_swap.png",
                 "CAPTIONS.json",
                 "CAPTIONS.md",
                 "PROVENANCE.json",

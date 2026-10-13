@@ -106,6 +106,13 @@ def main() -> int:
     cells_df["peak_speed_kn"] = peaks
     cells_df["in_plausibility_band"] = in_band
     cells_df["extrapolation"] = ~cells_df["in_plausibility_band"]
+    from counterusv.attacks.kinematics import class_speed_limits
+    limits = class_speed_limits(cfg)
+    if limits:
+        cells_df["class_plausible"] = [
+            float(r.v_mimic_kn) <= limits.get(str(r.mimicked_class), float("inf"))
+            for r in cells_df.itertuples(index=False)
+        ]
 
     cells_path.parent.mkdir(parents=True, exist_ok=True)
     cells_df.to_parquet(cells_path, index=False)

@@ -61,11 +61,12 @@ def _default_annulus(annulus: Mapping[str, Any] | None) -> dict[str, float]:
     }
 
 
-def _default_inbound(inbound_leg: Mapping[str, Any] | None) -> dict[str, int]:
+def _default_inbound(inbound_leg: Mapping[str, Any] | None) -> dict[str, Any]:
     leg = dict(inbound_leg or {})
     return {
         "require_points_before_cpa": int(leg.get("require_points_before_cpa", 3)),
         "min_points": int(leg.get("min_points", 4)),
+        "include_reports_before_entry": bool(leg.get("include_reports_before_entry", False)),
     }
 
 
@@ -127,23 +128,30 @@ def geometry_features_from_points(
 
     idx_ann = np.flatnonzero(in_annulus)
     n_ann = int(idx_ann.size)
-    if n_ann < leg["min_points"]:
+    history = leg["include_reports_before_entry"]
+    if n_ann < (1 if history else leg["min_points"]):
         return None
 
     # CPA among in-annulus points.
     cpa_local = int(np.argmin(range_nm[idx_ann]))
     cpa_idx = int(idx_ann[cpa_local])
     cpa_range = float(range_nm[cpa_idx])
-    points_before = cpa_local  # count of in-annulus points strictly before CPA
+    if history:
+        # The leg is every window report up to CPA, including those before the
+        # contact entered the annulus, so a straight run that began outside it
+        # is scoreable from its first report inside.
+        leg_idx = np.arange(cpa_idx + 1)
+        points_before = cpa_idx
+    else:
+        points_before = cpa_local  # count of in-annulus points strictly before CPA
+        # Contiguous inbound leg ending at CPA within the in-annulus index list.
+        # Walk backward while indices are consecutive in time order.
+        start_local = cpa_local
+        while start_local > 0 and idx_ann[start_local - 1] == idx_ann[start_local] - 1:
+            start_local -= 1
+        leg_idx = idx_ann[start_local : cpa_local + 1]
     if points_before < leg["require_points_before_cpa"]:
         return None
-
-    # Contiguous inbound leg ending at CPA within the in-annulus index list.
-    # Walk backward while indices are consecutive in time order.
-    start_local = cpa_local
-    while start_local > 0 and idx_ann[start_local - 1] == idx_ann[start_local] - 1:
-        start_local -= 1
-    leg_idx = idx_ann[start_local : cpa_local + 1]
     if leg_idx.size < leg["min_points"]:
         return None
 

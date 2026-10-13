@@ -251,64 +251,29 @@ def first_flag_along_track(
     ``evaluate_fn`` must accept ``features_by_window`` / ``complete_windows``
     kwargs and return an object with ``.action`` (``DefenseDecision``).
     """
-    g = points.sort_values("t").reset_index(drop=True)
-    if len(g) < 3:
-        return {
-            "flagged": False,
-            "t_flag_unix": None,
-            "t_flag_s": None,
-            "R_flag_nm": None,
-            "t_enter_unix": None,
-            "n_checkpoints": 0,
-        }
+    # Local import: causal.walk_track calls back into this module.
+    from counterusv.eval.causal import walk_track
 
-    r = range_series(g, asset_lat, asset_lon)
-    t_enter = annulus_entry_time(g, r, max_range_nm=max_range_nm)
-    min_hist = float(max(int(w) for w in windows_s)) if windows_s else 300.0
-    times = checkpoint_times(g, min_history_s=min_hist, stride_s=stride_s)
-
-    for tk in times:
-        prefix = g.loc[g["t"] <= tk + 1e-9]
-        if len(prefix) < 3:
-            continue
-        by_w, complete = extract_windows(
-            prefix,
-            windows_s,
-            asset_lat=asset_lat,
-            asset_lon=asset_lon,
-            annulus=annulus,
-            inbound_leg=inbound_leg,
-            join_geometry=join_geometry,
-        )
-        if not by_w:
-            continue
-        dec = evaluate_fn(
-            features_by_window=by_w,
-            complete_windows=complete,
-        )
-        if str(dec.action) != "flag":
-            continue
-        # Range at last point of prefix.
-        r_flag = float(r.loc[prefix.index].iloc[-1])
-        t_flag_s = None
-        if t_enter is not None:
-            t_flag_s = float(tk) - float(t_enter)
-        return {
-            "flagged": True,
-            "t_flag_unix": float(tk),
-            "t_flag_s": t_flag_s,
-            "R_flag_nm": r_flag,
-            "t_enter_unix": t_enter,
-            "n_checkpoints": len(times),
-        }
-
+    walked = walk_track(
+        points,
+        asset_lat=asset_lat,
+        asset_lon=asset_lon,
+        max_range_nm=max_range_nm,
+        windows_s=windows_s,
+        join_geometry=join_geometry,
+        annulus=annulus,
+        inbound_leg=inbound_leg,
+        evaluate_fn=evaluate_fn,
+        stride_s=stride_s,
+        stop_at_flag=True,
+    )
     return {
-        "flagged": False,
-        "t_flag_unix": None,
-        "t_flag_s": None,
-        "R_flag_nm": None,
-        "t_enter_unix": t_enter,
-        "n_checkpoints": len(times),
+        "flagged": walked["flagged"],
+        "t_flag_unix": walked["t_flag_unix"],
+        "t_flag_s": walked["t_flag_s"],
+        "R_flag_nm": walked["R_flag_nm"],
+        "t_enter_unix": walked["t_enter_unix"],
+        "n_checkpoints": walked["n_checkpoints"],
     }
 
 

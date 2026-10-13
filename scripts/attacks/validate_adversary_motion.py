@@ -32,6 +32,7 @@ from counterusv.attacks.kinematics import (  # noqa: E402
     load_placements,
     platforms_from_config,
     refuse_benign_corpus_write,
+    resolve_noise_model,
 )
 from counterusv.defense.consistency import ConsistencyScorer  # noqa: E402
 from counterusv.defense.engagement import load_engagement_geometry  # noqa: E402
@@ -127,6 +128,58 @@ def _score_track(
     }
 
 
+def _quantile_overlap(synth: np.ndarray, real: np.ndarray) -> float | None:
+    """Fraction of synthetic p10/p50/p90 that fall inside the real p10–p90 band."""
+    if synth.size < 8 or real.size < 8:
+        return None
+    lo, hi = np.quantile(real, [0.10, 0.90])
+    marks = np.quantile(synth, [0.10, 0.50, 0.90])
+    return float(np.mean((marks >= lo) & (marks <= hi)))
+
+
+def _realism_report(
+    points: pd.DataFrame,
+    cfg: dict,
+    asset_xy: dict[str, tuple[float, float]],
+    annulus: dict,
+    inbound: dict,
+) -> dict | None:
+    """Window-matched comparison of negative controls to real validation windows.
+
+    Reported, not a gate. Skipped when the recipe has no noise model.
+    """
+    from counterusv.attacks.realism import window_matched_report
+
+    if resolve_noise_model(cfg) is None:
+        return None
+    if "negative_control" not in points.columns or points.empty:
+        return None
+    cells_rel = (cfg.get("output") or {}).get("cells") or "results/adversary_motion/sweep_cells.parquet"
+    cells_path = REPO_ROOT / cells_rel
+    if not cells_path.is_file():
+        return None
+    cells = pd.read_parquet(cells_path)
+    kin_path = REPO_ROOT / "data" / "behavior" / "features_window_600s.parquet"
+    geo_path = REPO_ROOT / "data" / "defense" / "features_geometry_window_600s.parquet"
+    if not kin_path.is_file():
+        return None
+    real_kin = pd.read_parquet(kin_path, columns=[
+        "trip_id", "split", "canonical_class", "window_complete", "sog_med",
+        "sog_std", "straightness", "cog_circ_std_deg",
+    ])
+    real_geo = (
+        pd.read_parquet(geo_path, columns=[
+            "split", "canonical_class", "bearing_rate_std_dps", "closing_rate_med_kn",
+        ])
+        if geo_path.is_file() else pd.DataFrame()
+    )
+    return window_matched_report(
+        points, cells, asset_xy, annulus, inbound,
+        real_kin=real_kin, real_geo=real_geo,
+    )
+
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -172,12 +225,7 @@ def main() -> int:
                      or "configs/defense/engagement_geometry.yaml")
     )
     annulus = {"min_range_nm": eng.min_range_nm, "max_range_nm": eng.max_range_nm}
-    inbound = {
-        "require_points_before_cpa": int(
-            eng.inbound_leg.get("require_points_before_cpa", 3)
-        ),
-        "min_points": int(eng.inbound_leg.get("min_points", 4)),
-    }
+    inbound = dict(eng.inbound_leg)
 
     # Prefer pre-materialized points when present and not smoke.
     points_path = REPO_ROOT / (out.get("points")
@@ -243,7 +291,8 @@ def main() -> int:
         sog = g["sog"].to_numpy(dtype="float64")
         plat_key = str(g["platform"].iloc[0]) if "platform" in g.columns else None
         burst = float(plats[plat_key].burst_kn) if plat_key in plats else None
-        if burst is not None and float(np.nanmax(sog)) > burst + 1e-6:
+        burst_slack = 1.5 if resolve_noise_model(cfg) is not None else 1e-6
+        if burst is not None and float(np.nanmax(sog)) > burst + burst_slack:
             dynamics_ok = False
             dyn_notes.append(f"{tid}: sog {np.nanmax(sog):.1f} > burst {burst}")
         if len(g) >= 2:
@@ -268,7 +317,15 @@ def main() -> int:
         dts.append(np.diff(np.sort(g["t"].to_numpy(dtype="float64"))))
     all_dt = np.concatenate(dts) if dts else np.array([thin_s])
     median_dt = float(np.median(all_dt))
-    cadence_ok = abs(median_dt - thin_s) <= cadence_tol
+    cadence_target = thin_s
+    cadence_tol_use = cadence_tol
+    noise_model = resolve_noise_model(cfg)
+    if noise_model is not None:
+        q50 = ((noise_model.get("report_interval_s") or {}).get("quantiles") or {}).get("p50")
+        if q50 is not None:
+            cadence_target = float(q50)
+            cadence_tol_use = max(cadence_tol, 45.0)
+    cadence_ok = abs(median_dt - cadence_target) <= cadence_tol_use
 
     # ---------------- extractability ----------------
     asset_xy = {
@@ -350,7 +407,8 @@ def main() -> int:
                 nc_trips.append(str(tid))
     max_nc = args.max_nc
     if max_nc is None:
-        max_nc = 12 if args.smoke else len(nc_trips)
+        # The v2 grid has one control per speed and offset; the smoke scores a cap.
+        max_nc = 12 if args.smoke else min(len(nc_trips), 180)
     nc_trips = nc_trips[:max_nc]
     print(f"[validity] negative-control smoke n={len(nc_trips)} …")
 
@@ -463,6 +521,12 @@ def main() -> int:
                 "geo_n": int(len(g)),
             }
 
+    realism = None
+    if not args.smoke:
+        print("[validity] realism comparison …")
+        realism = _realism_report(points, cfg, asset_xy, annulus, inbound)
+    summary_realism = realism
+
     # ---------------- freeze check ----------------
     freeze_path = REPO_ROOT / (out.get("freeze")
                                or "results/adversary_motion/FROZEN_SWEEP.json")
@@ -498,8 +562,8 @@ def main() -> int:
         "cadence": {
             "ok": cadence_ok,
             "median_dt_s": median_dt,
-            "target_s": thin_s,
-            "tol_s": cadence_tol,
+            "target_s": cadence_target,
+            "tol_s": cadence_tol_use,
         },
         "extractability": {
             "ok": extract_ok,
@@ -518,6 +582,7 @@ def main() -> int:
             ),
         },
         "class_contrast": contrast_summary,
+        "realism": summary_realism,
         "freeze": {
             "path": str(freeze_path.relative_to(REPO_ROOT)) if freeze_path.is_file() else None,
             "digest": (freeze.get("digests") or {}).get("sweep_cells"),
@@ -552,8 +617,8 @@ def main() -> int:
         "",
         "## Cadence",
         "",
-        f"- Target thin cadence: **{thin_s:.0f} s** (median Δt = {median_dt:.1f} s).",
-        f"- Verdict: **{'PASS' if cadence_ok else 'FAIL'}** (tol ±{cadence_tol} s).",
+        f"- Target report interval: **{cadence_target:.0f} s** (median Δt = {median_dt:.1f} s).",
+        f"- Verdict: **{'PASS' if cadence_ok else 'FAIL'}** (tol ±{cadence_tol_use:.0f} s).",
         "",
         "## Extractability",
         "",
@@ -600,6 +665,27 @@ def main() -> int:
         g = ("—" if row["geo_flag_rate"] is None
              else f"{row['geo_flag_rate']:.0%} (n={row['geo_n']})")
         lines.append(f"| {cls} | {k} | {g} |")
+    if summary_realism is not None:
+        lines += [
+            "",
+            "## Realism against real traffic",
+            "",
+            summary_realism["note"],
+            "",
+            "KS is the two-sample statistic (0 = same distribution). "
+            "Quantile overlap is the fraction of synthetic p10/p50/p90 inside the real p10–p90.",
+            "",
+            "| Class | Mimic kn | Offset | Feature | n synth | n real | synth p50 | real p50 | overlap | KS |",
+            "|---|---:|---|---|---:|---:|---:|---:|---:|---:|",
+        ]
+        for row in summary_realism["comparisons"]:
+            def _fmt(x: float | None) -> str:
+                return "—" if x is None else f"{x:.3g}"
+            lines.append(
+                f"| {row['class']} | {row['v_mimic_kn']:g} | {row.get('offset_group', '')} | {row['feature']} | "
+                f"{row['n_synth']} | {row['n_real']} | {_fmt(row['synth_p50'])} | "
+                f"{_fmt(row['real_p50'])} | {_fmt(row['quantile_overlap'])} | {_fmt(row['ks'])} |"
+            )
     lines += [
         "",
         "## Freeze",
@@ -615,7 +701,7 @@ def main() -> int:
         "",
         "## Artifacts",
         "",
-        f"- Points root: `results/adversary_motion/`",
+        f"- Points: `{(cfg.get('output') or {}).get('points', 'results/adversary_motion/tracks_points.parquet')}`",
         f"- Summary JSON: `{summary_path.relative_to(REPO_ROOT)}`",
         "",
     ]

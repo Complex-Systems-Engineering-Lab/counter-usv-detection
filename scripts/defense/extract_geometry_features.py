@@ -234,6 +234,8 @@ def main() -> int:
     ap.add_argument("--splits", type=Path, default=DEFAULT_SPLITS)
     ap.add_argument("--placements", type=Path, default=DEFAULT_PLACEMENTS)
     ap.add_argument("--features-config", type=Path, default=DEFAULT_FEATURES_CFG)
+    ap.add_argument("--engagement", type=Path, default=None,
+                    help="engagement geometry config; default is the frozen v1 file")
     ap.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     ap.add_argument("--windows", type=float, nargs="*", default=None)
     ap.add_argument("--smoke", action="store_true",
@@ -248,7 +250,7 @@ def main() -> int:
               file=sys.stderr)
         return 2
 
-    eng = load_engagement_geometry()
+    eng = load_engagement_geometry(args.engagement)
     windows, policy = _load_windows(args.features_config)
     if args.windows:
         windows = [float(w) for w in args.windows]

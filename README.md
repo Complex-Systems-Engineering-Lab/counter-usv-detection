@@ -1,40 +1,36 @@
 # Counter-USV Adversarial Robustness
 
-Testbed and class–kinematics consistency defense for shore-based counter-USV EO detection under adversarial attack.
+Testbed for shore-based counter-USV camera detection under adversarial attack, and a class–motion consistency defense that checks the camera's class against radar-measured speed and closing rate.
 
 ## Overview
 
 ### Why this matters
 
-Detecting small unmanned surface vessels (USVs) before they close range is a growing coastal-defense problem. Shore radar is the usual backbone, but small, slow, or low-observable craft can fall below its thresholds, and cooperative AIS does nothing against a craft that never transmits. Electro-optical (EO) detectors are being fielded to close that gap.
+Uncrewed surface vessels are being used against ports and shipping. Shore cameras with machine-learning classifiers are being fielded to separate such craft from benign traffic. An attacker can try to hide the craft with a hull patch, or to make it look like a fishing boat, a sailing yacht, or a recreational speedboat. Radar measures motion the attacker cannot falsify, but a radar track does not name the vessel class. AIS is self-reported and easily withheld.
 
-Seeing an *undisguised* USV is not the hard case. An adversary can instead:
-
-- **Evade** — suppress EO detection entirely (present → absent), or
-- **Disguise** — remain detected, but as benign traffic such as fishing or recreational craft (hostile → benign).
-
-These threats are not equal in a layered system. Evasion must beat every sensor: an EO miss can still appear on radar. A **benign label** explains the contact away, so presence-only fusion does not catch it. That residual **disguise** threat is what this project targets.
+These threats hit different layers. A suppressed camera detection leaves a radar track with no matching detection, which a presence check can flag. A benign camera label explains the contact away, so presence-only fusion does not catch it. Under the tested patch recipe, suppression occurs and a hostile-to-benign label change does not. Physical disguise is the benign-label case the defense is scored against.
 
 ### Research gap
 
-Existing adversarial work on ships is mostly overhead satellite imagery, onboard “detection by” platforms, or fusion that only checks whether a track *exists*. Class–track consistency defenses appear in other domains (notably driving), but they usually (i) score image-plane bounding-box tracks that a pixel attack can manipulate, (ii) train on labeled tracks that already include the defended classes, and (iii) never require the adversary to change the object’s **physical motion**. AIS-based vessel-behavior models are mature, yet have not been linked to vision-detector robustness. And unlike many aerial threats, a hostile USV is often *built* to look like ordinary small craft — so hostile→benign disguise has no clean counter-UAV analog.
+Existing adversarial work on ships is mostly overhead satellite imagery, onboard “detection by” platforms, or fusion that only checks whether a track *exists*. Class–track consistency defenses appear in other domains (notably driving), but they usually (i) score image-plane bounding-box tracks that a pixel attack can manipulate, (ii) train on labeled tracks that already include the defended classes, and (iii) never require the adversary to change the object’s **physical motion**. A hostile USV is often built to look like ordinary small craft, so the benign-label case has no clean counter-UAV analog.
 
-This repository targets that gap: a shore-based EO detector defended against a craft that obtains a benign label (via adversarial patch or visual disguise), using **world-frame kinematics** scored against a **benign-only behavior model** learned from real trajectory data — and measuring the cost when a defense-aware adversary must actually move like that class.
+This repository targets that gap. Given a benign camera label, it asks whether the vessel's measured speed and its closing rate toward a protected asset are plausible for that class. Cutoffs are quantiles of real benign approaches. AIS tracks stand in for radar. The reported attacker follows a recorded approach until a chosen commit, then replaces the rest with a simulated run-in, straight or off-axis. Staying under both cutoffs lengthens the approach; a late turn toward the asset can leave little warning.
 
 Three research questions structure the work:
 
-1. **Attack feasibility.** With a physically realizable, marine-surviving perturbation, how hard is full EO non-detection versus a hostile→benign flip — across imaging conditions and white / grey / black-box access (including transfer to a held-out detector)?
-2. **Defense against disguise.** Does class–kinematics consistency catch hostile→benign cases that presence-only fusion misses, and at what false-alarm rate on real benign traffic?
-3. **Adaptive-adversary cost.** What operational cost (approach delay, restricted speed or geometry) must an adversary pay to mimic the spoofed class’s motion and defeat the check?
+1. **Attack feasibility.** With a physically realizable, marine-surviving perturbation, how often is a camera detection suppressed, and how often does the label change from hostile to benign — across imaging conditions and white / grey / black-box access?
+2. **Defense against a benign label.** Given that label, how often do a class-conditioned speed check and an asset-relative closing-rate check flag the approach, and at what false-alarm rate on held-out benign traffic?
+3. **Adaptive-adversary cost.** What does an attacker give up in arrival time and warning by staying consistent with the claimed class, including on off-axis approaches?
 
 ### What this repository provides
 
-- **Attacks** — evasion and targeted misclassification (disguise), marine imaging transforms, access-level transfer, and a perfect-disguise oracle (no-patch class assertion)
-- **Defense** — class–kinematics consistency: flag contacts whose EO-asserted class disagrees with observed motion (`DefensePipeline` wires detections / oracle assertions to a decision)
-- **Benign-behavior model** — class-conditional, trained only on real AIS trajectories (MarineCadastre); hostile tracks never enter training
-- **Evaluation harness** — metrics, configs, and scripts for attack × defense comparison and kinematic cost curves
+- **Attacks** — printability-constrained hull patches for suppression and for attempted relabeling, marine imaging transforms, access-level transfer, and a perfect-disguise oracle that asserts a benign class with no patch
+- **Replay attacker** — recorded AIS approaches spliced to straight, capped-angle, and dog-leg run-ins (`src/counterusv/attacks/replay.py`)
+- **Defense** — per-class speed and closing-rate cutoffs, plus Gaussian-mixture, Mahalanobis, and isolation-forest scorers on the fuller feature sets, used as comparisons
+- **Benign reference** — cutoffs and comparison models fit only on real AIS trajectories (MarineCadastre); hostile tracks never enter calibration
+- **Evaluation harness** — walk-forward detection, false alarms, and warning time on the replays
 
-Misclassification is treated as means-agnostic (patch or genuine visual disguise). All work is digital and simulated-physical only — see [`docs/DUAL_USE.md`](docs/DUAL_USE.md).
+All work is digital and simulated-physical only — see [`docs/DUAL_USE.md`](docs/DUAL_USE.md).
 
 ## Repository layout
 
@@ -42,13 +38,13 @@ Misclassification is treated as means-agnostic (patch or genuine visual disguise
 src/counterusv/
   data/         # dataset curation, harmonization, loaders
   models/       # detector families (baselines)
-  attacks/      # evasion + targeted-misclassification, marine-EOT, adaptive attack
-  defense/      # class-kinematics consistency + baseline defenses
-  kinematics/   # trajectory ingestion + benign-behavior model
-  eval/         # metrics, attack × defense matrix, cost curve, real-track FAR
+  attacks/      # patches, marine-EOT, replay run-ins, adversary motion
+  defense/      # consistency scorer, engagement geometry, presence check
+  kinematics/   # trajectory ingestion + comparison envelopes
+  eval/         # walk-forward checks, false alarms, warning time
 configs/        # experiment configs (base.yaml + overrides)
 scripts/        # entry-point scripts (see scripts/README.md)
-docs/           # threat model, metrics, transfer protocol, data licenses
+docs/           # threat model, metrics, engagement geometry, data licenses
 data/           # raw datasets & tracks (not tracked; see docs/DATA_LICENSES.md)
 results/        # experiment outputs (not tracked)
 tests/          # tests

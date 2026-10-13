@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-"""Fig. 3 — RQ2 oracle DDR + presence gap (both consistency arms).
+"""Fig. 3 — detection of replayed approaches, and what the flags before the commit are.
 
-Source: ``results/oracle_ddr/oracle_ddr_summary.json`` (defense-freeze pinned).
+Panel (a) is detection of class-plausible replays (commits 0.5 to 4 nm)
+against the realized false-alarm rate, for the two per-checkpoint checks.
+Panel (b) puts replay flags before the commit beside the benign false-alarm
+rate on encounters that come as close, counted before they first reach the
+same range, for the replay source encounters and for all encounters.
+
+Source: ``sequential_facts.SUMMARY``, the reported walk-forward summary.
 """
 
 from __future__ import annotations
@@ -24,122 +30,83 @@ from _common import (  # noqa: E402
     save_fig,
     verify_freezes,
 )
+from sequential_facts import SUMMARY, DETECTORS, close_far, curve, operating, pre_commit  # noqa: E402
+
+
+COLORS = {"kinematics_only": "#4c78a8", "kinematics_geometry": "#54a24b"}
+PREFIX_COMMITS = (0.5, 1.0, 2.0, 4.0)
 
 
 def build_figure(out_dir: Path) -> dict:
     import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
 
     apply_style()
-    oracle = load_json("results/oracle_ddr/oracle_ddr_summary.json")
-    classes = ["fishing", "recreational", "sailing"]
-    arms = ["kinematics_only", "kinematics_geometry"]
-    arm_labels = {
-        "kinematics_only": "kinematics only",
-        "kinematics_geometry": "kinematics + geometry",
-    }
+    summary = load_json(SUMMARY)
+    fig, (ax, ax_b) = plt.subplots(1, 2, figsize=(8.6, 3.7))
 
-    cons = {
-        (r["mimicked_class"], r["arm"]): float(r["ddr"]) * 100.0
-        for r in oracle.get("consistency_ddr") or []
-    }
-    presence = {
-        r["mimicked_class"]: float(r["ddr"]) * 100.0
-        for r in oracle.get("presence_ddr") or []
-    }
-    unc = {
-        (r["mimicked_class"], r["arm"]): float(r["ddr"]) * 100.0
-        for r in oracle.get("unconstrained_ddr") or []
-    }
-    x = np.arange(len(classes))
-    width = 0.25
-    fig, (ax, ax_ins) = plt.subplots(
-        1,
-        2,
-        figsize=(8.4, 3.6),
-        gridspec_kw={"width_ratios": [2.0, 1.25]},
-    )
-
-    # Main: presence + two arms (presence is 0 on disguise — show as gap)
-    colors = {
-        "presence": "#bbbbbb",
-        "kinematics_only": "#4c78a8",
-        "kinematics_geometry": "#54a24b",
-    }
-    pres_vals = [presence.get(c, 0.0) for c in classes]
-    bars_p = ax.bar(
-        x - width,
-        # Draw a stub so the 0% presence bar is visible as a gap marker.
-        [max(v, 1.5) for v in pres_vals],
-        width,
-        label="presence check",
-        color=colors["presence"],
-        edgecolor="#333333",
-        linewidth=0.6,
-    )
-    for bar, v in zip(bars_p, pres_vals):
-        ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            3.0,
-            f"{v:.0f}",
-            ha="center",
-            va="bottom",
-            fontsize=7,
-            color="#555555",
-        )
-    for i, arm in enumerate(arms):
-        offset = 0 if i == 0 else width
-        vals = [cons.get((c, arm), 0.0) for c in classes]
-        ax.bar(
-            x + offset,
-            vals,
-            width,
-            label=arm_labels[arm],
-            color=colors[arm],
-            edgecolor="#333333",
-            linewidth=0.6,
-        )
-        for xi, v in zip(x + offset, vals):
-            ax.text(xi, v + 1.5, f"{v:.0f}", ha="center", va="bottom", fontsize=7)
-
-    ax.set_xticks(x)
-    ax.set_xticklabels(classes)
-    ax.set_ylabel("DDR (%)")
-    ax.set_ylim(0, 112)
+    for detector, arm, label in DETECTORS:
+        rows = sorted(curve(summary, detector, arm, "replay_plausible"), key=lambda r: r["far"] or 0)
+        xs = [100.0 * float(r["far"]) for r in rows if r.get("far") is not None and r.get("detection") is not None]
+        ys = [100.0 * float(r["detection"]) for r in rows if r.get("far") is not None and r.get("detection") is not None]
+        if len(xs) < 2:
+            continue
+        ax.plot(xs, ys, color=COLORS[arm], linewidth=2.0, label=label)
+        frozen = operating(summary, detector, arm, "replay_plausible")
+        if frozen.get("realized_far") is not None and frozen.get("detection") is not None:
+            ax.scatter(
+                [100.0 * float(frozen["realized_far"])],
+                [100.0 * float(frozen["detection"])],
+                color=COLORS[arm], s=28, zorder=4,
+            )
+    ax.plot([0, 22], [0, 22], color="#bbbbbb", linewidth=0.8, linestyle="--")
+    ax.axvline(5.0, color="#bbbbbb", linewidth=0.8, linestyle=":")
+    ax.set_xlabel("Realized false-alarm rate (%)")
+    ax.set_ylabel("Detection rate (%)")
+    ax.set_xlim(0, 22)
+    ax.set_ylim(0, 102)
     panel_label(ax, "a")
 
-    # Inset: unconstrained recreational
-    unc_classes = ["fishing", "recreational", "sailing"]
-    x2 = np.arange(len(unc_classes))
-    w2 = 0.35
-    for i, arm in enumerate(arms):
-        offset = -w2 / 2 if i == 0 else w2 / 2
-        vals = [unc.get((c, arm), 0.0) for c in unc_classes]
-        bars = ax_ins.bar(
-            x2 + offset,
-            vals,
-            w2,
-            label=arm_labels[arm],
-            color=colors[arm],
-            edgecolor="#333333",
-            linewidth=0.6,
-        )
-        for bar, v in zip(bars, vals):
-            ax_ins.text(
-                bar.get_x() + bar.get_width() / 2,
-                max(v, 0) + 2,
-                f"{v:.0f}",
-                ha="center",
-                va="bottom",
-                fontsize=7,
-            )
-    ax_ins.set_xticks(x2)
-    ax_ins.set_xticklabels(unc_classes, fontsize=8)
-    ax_ins.set_ylim(0, 112)
-    panel_label(ax_ins, "b")
+    x = np.arange(len(PREFIX_COMMITS))
+
+    def _far(arm: str, group: str) -> list[float]:
+        vals = []
+        for c in PREFIX_COMMITS:
+            v = close_far(summary, arm, c, group=group).get("far_before_reach")
+            vals.append(float("nan") if v is None else 100.0 * float(v))
+        return vals
+
+    plotted: list[float] = []
+    for i, (_detector, arm, _label) in enumerate(DETECTORS):
+        sources = _far(arm, "replay_sources")
+        classes = _far(arm, "replay_classes")
+        ax_b.plot(x, sources, color=COLORS[arm], linewidth=1.6, zorder=2)
+        ax_b.plot(x, classes, color=COLORS[arm], linewidth=1.6, linestyle="--", zorder=2)
+        replay = [100.0 * float(pre_commit(summary, arm, c).get("replay_before_commit") or 0.0)
+                  for c in PREFIX_COMMITS]
+        ax_b.scatter(x + (i - 0.5) * 0.08, replay, color=COLORS[arm], marker="D", s=26,
+                     edgecolor="#333333", linewidth=0.5, zorder=4)
+        plotted += sources + classes + replay
+    ax_b.set_xticks(x)
+    ax_b.set_xticklabels([f"{c:g}" for c in PREFIX_COMMITS])
+    ax_b.set_xlabel("Commit range / closest approach (nm)")
+    ax_b.set_ylabel("False alarms before the range (%)")
+    top = max([v for v in plotted if np.isfinite(v)], default=15.0)
+    ax_b.set_ylim(0, 5.0 * np.ceil(top * 1.1 / 5.0))
+    ax_b.legend(
+        handles=[
+            Line2D([], [], color="#666666", marker="D", linestyle="none", markersize=5,
+                   label="replays, before the commit"),
+            Line2D([], [], color="#666666", linewidth=1.6, label="benign, replay sources"),
+            Line2D([], [], color="#666666", linewidth=1.6, linestyle="--", label="benign, all"),
+        ],
+        frameon=False, fontsize=7.5, loc="upper right",
+    )
+    panel_label(ax_b, "b")
 
     fig.tight_layout()
-    handles, labels = ax.get_legend_handles_labels()
-    legend_below(fig, handles, labels, ncol=3, y=0.0)
+    handles = [Line2D([], [], color=COLORS[arm], linewidth=2.0, label=label) for _d, arm, label in DETECTORS]
+    legend_below(fig, handles, [h.get_label() for h in handles], ncol=2, y=-0.02)
     return save_fig(fig, "fig3_rq2_ddr_gap", out_dir=out_dir)
 
 

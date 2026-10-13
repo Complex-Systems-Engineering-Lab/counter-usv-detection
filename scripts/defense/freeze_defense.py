@@ -69,6 +69,17 @@ EVAL_ARTIFACTS = [
     "results/label_swap_pooled/label_swap_summary.json",
     "results/label_swap_pooled/label_swap_report.md",
     "results/adversary_motion/FROZEN_SWEEP.json",
+    "results/causal_v3_rules_pooled/FROZEN.json",
+    "results/causal_v3_rules_pooled/summary.json",
+    "results/causal_v3_rules_pooled/report.md",
+    "results/causal_v3_rules_pooled/class_value.json",
+    "results/causal_v3_rules_pooled/class_value.md",
+    "results/causal_v3_fixed/rules_pooled/10kn/summary.json",
+    "results/causal_v3_fixed/rules_pooled/10kn/report.md",
+    "results/causal_v3_fixed/rules_pooled/15kn/summary.json",
+    "results/causal_v3_fixed/rules_pooled/15kn/report.md",
+    "results/causal_v3_fixed/rules_pooled/20kn/summary.json",
+    "results/causal_v3_fixed/rules_pooled/20kn/report.md",
 ]
 
 

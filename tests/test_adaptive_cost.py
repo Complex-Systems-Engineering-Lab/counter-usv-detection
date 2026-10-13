@@ -207,13 +207,13 @@ def test_checkpoint_and_first_flag():
     # which needs real features; for unit test, patch by providing enough
     # points that extract_windows may abstain. Instead stub evaluate only when
     # windows exist: force by_w non-empty by patching module function.
-    import counterusv.eval.adaptive_cost as ac
+    import counterusv.eval.causal as causal
 
     def fake_extract(points, windows_s, **kwargs):
         return {int(windows_s[-1]): {"sog_p50": 10.0}}, {int(windows_s[-1])}
 
-    orig = ac.extract_windows
-    ac.extract_windows = fake_extract  # type: ignore[assignment]
+    orig = causal.extract_windows
+    causal.extract_windows = fake_extract  # type: ignore[assignment]
     try:
         out = first_flag_along_track(
             points,
@@ -228,7 +228,7 @@ def test_checkpoint_and_first_flag():
             stride_s=60.0,
         )
     finally:
-        ac.extract_windows = orig  # type: ignore[assignment]
+        causal.extract_windows = orig  # type: ignore[assignment]
 
     assert out["flagged"] is True
     assert out["R_flag_nm"] is not None

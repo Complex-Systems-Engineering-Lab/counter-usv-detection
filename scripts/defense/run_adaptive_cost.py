@@ -343,12 +343,7 @@ def main() -> int:
         asset_xy = _asset_coords(placements)
 
         annulus = {"min_range_nm": eng.min_range_nm, "max_range_nm": eng.max_range_nm}
-        inbound = {
-            "require_points_before_cpa": int(
-                eng.inbound_leg.get("require_points_before_cpa", 3)
-            ),
-            "min_points": int(eng.inbound_leg.get("min_points", 4)),
-        }
+        inbound = dict(eng.inbound_leg)
 
         print("[adaptive_cost] loading defenses for causal pass …")
         verify = not args.no_verify_digests

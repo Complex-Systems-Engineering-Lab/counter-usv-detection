@@ -19,9 +19,11 @@ re-argued ad hoc in every report.
   geometry abstain (never impute) when gates fail.
 - Units and cadence assumptions matching the AIS track contract.
 
-Feature formulas themselves live in the scorer feature contract (v2); the
-adversary motion model consumes the same asset definition so both arms of
-the defense and the cost-curve sweep share one geometry.
+Feature formulas themselves live in the scorer feature contract. The
+reported check uses the 90th percentile of closing rate on the inbound leg.
+Comparison scorers add bearing stability, closest approach, and time spent
+closing. The replay attacker and the earlier motion sweep use the same asset
+point, so false alarms and run-ins are scored against one geometry.
 
 ## Static geography vs. evolving relationship to a defended point
 
@@ -94,6 +96,12 @@ construction:
 - Pair a track only with placements in the same seed port region; emit a
   row only when annulus / inbound-leg gates pass. Tracks that never enter
   an annulus stay kinematics-only (geometry masked).
+- From `engagement_geometry_v3.yaml`, the inbound leg is every report in the
+  window up to the closest approach, including reports from before the
+  contact entered the annulus (`include_reports_before_entry`). The closest
+  approach must still fall inside the annulus, so nothing is scored outside
+  it, but a straight run that began beyond the ring is scoreable from its
+  first report inside. Earlier configs count only reports inside the annulus.
 - **Envelopes are fit only at `role: fit` placements** — the realistic
   asset archetypes (berth approach, anchorage). `far_only` placements stay
   in the table and are scored as false-alarm sensitivity, not as a second

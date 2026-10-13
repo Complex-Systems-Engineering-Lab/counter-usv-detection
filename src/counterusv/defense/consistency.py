@@ -199,6 +199,9 @@ class ConsistencyScorer:
         self.far_targets = list(
             far_targets if far_targets is not None else [0.01, 0.05, 0.10]
         )
+        # Optional per-envelope addend applied on top of the frozen threshold.
+        # Empty by default, so previously frozen decisions are unchanged.
+        self.causal_offsets: dict[str, float] = {}
 
     @classmethod
     def from_artifacts(
@@ -627,4 +630,9 @@ class ConsistencyScorer:
         fit = fams.get(model_name)
         if fit is None:
             return None
-        return fit.thresholds.get(_far_key(far_target))
+        thr = fit.thresholds.get(_far_key(far_target))
+        if thr is None:
+            return None
+        name = getattr(bundle, "name", None)
+        delta = float(self.causal_offsets.get(str(name), 0.0)) if name else 0.0
+        return float(thr) + delta

@@ -27,7 +27,7 @@ code**, never bulk raw AIS or point-level AIS feeds. The Zenodo data deposit add
 | **Format** | Parquet under `tracks/` (`tracks_ais.parquet`) |
 | **Tracks** | AIS **153,811** (30,053 vessels) |
 | **Labels** | Vessel class per track (AIS self-report) |
-| **Maintainer** | Academic research (CSEL / Duke) |
+| **Maintainer** | Academic research (Duke University) |
 
 ---
 

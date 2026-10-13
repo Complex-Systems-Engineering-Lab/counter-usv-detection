@@ -26,7 +26,7 @@ products from the permissive release slice (regenerate locally via `fetch_data.p
 | **Format** | COCO (`annotations/coco_master.json`) + per-source COCO files |
 | **Images / boxes** | **25,262 images / 71,501 boxes** |
 | **Classes** | Unified vessel taxonomy + a curated `usv` class (see `taxonomy.yaml`) |
-| **Maintainer** | Academic research (CSEL / Duke) |
+| **Maintainer** | Academic research (Duke University) |
 
 ---
 

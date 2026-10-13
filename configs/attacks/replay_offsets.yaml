@@ -1,0 +1,61 @@
+# Off-axis replay run-ins. Closing rate is speed times cos(angle) on a capped
+# leg, and a dog-leg passes abeam of the asset before turning in.
+# Frozen after the validation-split geometry check, before any test scoring.
+version: 1
+frozen: "2026-10-12"
+
+max_turn_rate_dps: 8.0
+
+variants:
+  - name: capped20kn_a45
+    mode: capped
+    speed_kn: 20
+    alpha_deg: 45
+  - name: capped20kn_a45_t1
+    mode: capped
+    speed_kn: 20
+    alpha_deg: 45
+    turn_in_nm: 1.0
+  - name: capped20kn_a60
+    mode: capped
+    speed_kn: 20
+    alpha_deg: 60
+  - name: capped20kn_a60_t1
+    mode: capped
+    speed_kn: 20
+    alpha_deg: 60
+    turn_in_nm: 1.0
+  - name: capped30kn_a60
+    mode: capped
+    speed_kn: 30
+    alpha_deg: 60
+  - name: capped30kn_a60_t1
+    mode: capped
+    speed_kn: 30
+    alpha_deg: 60
+    turn_in_nm: 1.0
+  - name: capped30kn_a70
+    mode: capped
+    speed_kn: 30
+    alpha_deg: 70
+  - name: capped30kn_a70_t1
+    mode: capped
+    speed_kn: 30
+    alpha_deg: 70
+    turn_in_nm: 1.0
+  - name: dogleg20kn_d1
+    mode: dogleg
+    speed_kn: 20
+    abeam_nm: 1.0
+  - name: dogleg20kn_d2
+    mode: dogleg
+    speed_kn: 20
+    abeam_nm: 2.0
+  - name: dogleg30kn_d1
+    mode: dogleg
+    speed_kn: 30
+    abeam_nm: 1.0
+  - name: dogleg30kn_d2
+    mode: dogleg
+    speed_kn: 30
+    abeam_nm: 2.0

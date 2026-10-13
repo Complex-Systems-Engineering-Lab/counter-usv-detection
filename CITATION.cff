@@ -5,8 +5,8 @@ type: software
 authors:
   - family-names: Reifschneider
     given-names: Jon
-    affiliation: "Complex Systems Engineering Lab (CSEL), Duke University"
-repository-code: "https://github.com/Complex-Systems-Design-Lab/counter-usv-detection"
+    affiliation: "Duke University"
+repository-code: "https://github.com/Complex-Systems-Engineering-Lab/counter-usv-detection"
 license: MIT
 license-url: "https://opensource.org/licenses/MIT"
 abstract: >-

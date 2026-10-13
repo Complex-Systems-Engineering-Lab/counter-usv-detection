@@ -28,6 +28,32 @@ FIG1_SRC = REPO_ROOT / "figures" / "fig1_system.svg"
 # legend, so spell it out wherever a detector family is drawn.
 DETECTOR_LABELS = {"yolo11s": "yolo11s (small)", "yolo11l": "yolo11l (large)"}
 
+# On-figure names for the two consistency arms; must match the paper's prose.
+ARM_LABELS = {
+    "kinematics_only": "track-only check",
+    "kinematics_geometry": "asset-relative check",
+}
+
+
+def imitating_ddr(summary: dict[str, Any]) -> dict[tuple[str, str], dict[str, float]]:
+    """Per (mimicked_class, arm) DDR over imitating approaches only.
+
+    ``consistency_ddr`` pools the imitating sweep with the unconstrained run-in
+    sub-row; the paper's tables report the two separately, so subtract it out.
+    """
+    unc = {
+        (r["mimicked_class"], r["arm"]): r
+        for r in summary.get("unconstrained_ddr") or []
+    }
+    out: dict[tuple[str, str], dict[str, float]] = {}
+    for r in summary.get("consistency_ddr") or []:
+        key = (r["mimicked_class"], r["arm"])
+        u = unc.get(key) or {}
+        n = int(r["n"]) - int(u.get("n") or 0)
+        n_flag = int(r["n_flag"]) - int(u.get("n_flag") or 0)
+        out[key] = {"n": n, "n_flag": n_flag, "ddr": n_flag / n if n else 0.0}
+    return out
+
 
 def sha256(path: Path, chunk: int = 1 << 20) -> str:
     h = hashlib.sha256()

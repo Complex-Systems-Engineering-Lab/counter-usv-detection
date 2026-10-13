@@ -261,12 +261,23 @@ def write_report(path: Path, payload: dict) -> None:
         "subspaces (extended vector).",
         "- Skipped envelopes had fewer than `min_train_rows` usable encounter "
         "rows at every horizon — reported, not imputed.",
-        "- Bundles: `results/behavior_model_geometry/envelopes/<name>.joblib`.",
+        "- Bundles: `envelopes/<name>.joblib` in this directory.",
         "- Digested placements pin recorded in `FROZEN.json`.",
         "",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n")
+
+
+def envelope_relpath(out: Path, name: str) -> str:
+    """Repo-relative path of one envelope bundle written under ``out``.
+
+    Scoring loads every envelope from the parent of these paths, so the path
+    has to name the bundle this fit just wrote. A fixed directory would pin
+    an earlier fit while the manifest still claimed to be this one.
+    """
+    bundle = (out / "envelopes" / f"{name}.joblib").resolve()
+    return bundle.relative_to(REPO_ROOT.resolve()).as_posix()
 
 
 def _write_freeze(
@@ -279,8 +290,10 @@ def _write_freeze(
     env_dir = out / "envelopes"
     map_path = "configs/defense/class_envelope_map.yaml"
     feat_path = "configs/defense/scorer_features.yaml"
-    eng_path = "configs/defense/engagement_geometry.yaml"
-    cfg_rel = str(cfg_path.relative_to(REPO_ROOT))
+    cfg_resolved = cfg_path.resolve()
+    cfg_rel = str(cfg_resolved.relative_to(REPO_ROOT))
+    recipe = yaml.safe_load(cfg_resolved.read_text()) or {}
+    eng_path = str(recipe.get("engagement_geometry") or "configs/defense/engagement_geometry.yaml")
 
     # YAML configs: path only (git is source of truth). Data pins keep digests.
     configs: dict[str, dict[str, Any]] = {
@@ -304,7 +317,7 @@ def _write_freeze(
 
     envelopes: dict[str, dict[str, str]] = {}
     for name in envelope_names:
-        rel = f"results/behavior_model_geometry/envelopes/{name}.joblib"
+        rel = envelope_relpath(out, name)
         p = REPO_ROOT / rel
         if p.is_file():
             envelopes[name] = {"path": rel, "sha256": _sha256_file(p)}
@@ -327,7 +340,8 @@ def _write_freeze(
         "far_floor": {"default_far": 0.05},
         "firewall": {
             "note": "Fitted on role==benign encounter pairs only; "
-                    "hostile/synth never in training.",
+                    "hostile/synth never in training. Envelope paths name the "
+                    "bundles written beside this manifest.",
         },
         "pooled_ablation": payload.get("pooled_name"),
     }
@@ -421,7 +435,7 @@ def main() -> int:
 
     payload: dict[str, Any] = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "config": str(args.config.relative_to(REPO_ROOT)),
+        "config": str(args.config.resolve().relative_to(REPO_ROOT)),
         "feature_arm": "kinematics_geometry",
         "primary_window_s": primary_w,
         "windows_s": windows,

@@ -19,6 +19,7 @@ from _common import (  # noqa: E402
     sha256,
     verify_freezes,
 )
+from sequential_facts import SUMMARY  # noqa: E402
 
 
 def test_verify_freezes_passes_on_current_pins() -> None:
@@ -132,11 +133,11 @@ def test_captions_cover_every_figure(tmp_path: Path) -> None:
         "fig1_system",
         "fig2_rq1_feasibility",
         "fig3_rq2_ddr_gap",
-        "fig4_label_swap",
+        "fig4_far",
         "fig5_rq3_cost_warning",
-        "fig6_far",
         "figS1_severity",
         "figS2_pooled_gap",
+        "figS3_label_swap",
     }
     for rec in payload["figures"]:
         assert rec["short_title"].strip(), rec["id"]
@@ -148,37 +149,75 @@ def test_captions_cover_every_figure(tmp_path: Path) -> None:
     # Multi-panel figures must describe each panel they draw.
     assert set(by_id["fig3_rq2_ddr_gap"]["panels"]) == {"a", "b"}
     assert set(by_id["fig5_rq3_cost_warning"]["panels"]) == {"a", "b"}
-    assert set(by_id["fig6_far"]["panels"]) == {"a", "b"}
+    assert set(by_id["fig4_far"]["panels"]) == {"a", "b"}
     assert set(by_id["figS1_severity"]["panels"]) == {"a", "b", "c"}
     assert set(by_id["figS2_pooled_gap"]["panels"]) == {"a", "b"}
 
 
 def test_caption_numbers_match_source_artifacts(tmp_path: Path) -> None:
     """Quoted values must equal the pinned artifacts, not a stale transcription."""
-    from _common import load_json
+    from _common import imitating_ddr, load_json
     from captions import write
 
     payload = json.loads(write(tmp_path)["json"].read_text())
     by_id = {r["id"]: r for r in payload["figures"]}
 
-    oracle = load_json("results/oracle_ddr/oracle_ddr_summary.json")
-    cons = {
-        (r["mimicked_class"], r["arm"]): round(float(r["ddr"]) * 100.0, 1)
-        for r in oracle["consistency_ddr"]
-    }
+    causal = load_json(SUMMARY)
+
+    def _replay(detector: str, arm: str) -> dict:
+        for r in causal["operating_point"]:
+            if (
+                r["detector"] == detector
+                and r["arm"] == arm
+                and r["stratum"] == "replay_plausible"
+            ):
+                return r
+        raise AssertionError((detector, arm))
+
+    def _far(arm: str) -> float:
+        for r in causal["curve"]:
+            if (
+                r["detector"] == "per_checkpoint"
+                and r["arm"] == arm
+                and abs(float(r["alpha"]) - 0.05) < 1e-9
+                and r.get("far") is not None
+            ):
+                return round(100.0 * float(r["far"]), 1)
+        raise AssertionError(arm)
+
     kv3 = by_id["fig3_rq2_ddr_gap"]["key_values"]
-    assert kv3["ddr_recreational_kinematics_pct"] == cons[
-        ("recreational", "kinematics_only")
-    ]
-    assert kv3["ddr_recreational_geometry_pct"] == cons[
-        ("recreational", "kinematics_geometry")
-    ]
-    assert kv3["operating_far_pct"]["kinematics_only"] == round(
-        oracle["operating_far"]["kinematics_only"] * 100.0, 1
+    assert kv3["replay_detection_pct"]["kinematics_only"] == round(
+        100.0 * float(_replay("per_checkpoint", "kinematics_only")["detection"]), 1
+    )
+    assert kv3["replay_detection_pct"]["kinematics_geometry"] == round(
+        100.0 * float(_replay("per_checkpoint", "kinematics_geometry")["detection"]), 1
+    )
+    assert kv3["operating_far_pct"]["kinematics_only"] == _far("kinematics_only")
+    assert set(kv3) == {"replay_detection_pct", "pre_commit_pct", "close_far_pct", "operating_far_pct"}
+
+    def _commit(arm: str, variant: str, commit: float, population: str = "main") -> dict:
+        for r in causal["by_commit"]:
+            if (
+                r["arm"] == arm and r["variant"] == variant and r["population"] == population
+                and r["asserted_class"] == "recreational"
+                and abs(float(r["commit_range_nm"]) - commit) < 1e-9
+            ):
+                return r
+        raise AssertionError((arm, variant, commit, population))
+
+    kv5 = by_id["fig5_rq3_cost_warning"]["key_values"]
+    assert kv5["sprint_detection_pct"]["kinematics_geometry/burst/6"] == round(
+        100.0 * float(_commit("kinematics_geometry", "burst", 6.0)["detection"]), 1
+    )
+    assert kv5["sparse_detection_pct"]["kinematics_geometry/6"] == round(
+        100.0 * float(_commit("kinematics_geometry", "class_plausible", 6.0, "sparse")["detection"]), 1
+    )
+    assert kv5["post_commit_warning_min"]["kinematics_geometry/class_plausible/6"] == round(
+        float(_commit("kinematics_geometry", "class_plausible", 6.0)["median_warning_post_commit_min"]), 2
     )
 
     swap = load_json("results/label_swap/label_swap_summary.json")
-    kv4 = by_id["fig4_label_swap"]["key_values"]
+    kv4 = by_id["figS3_label_swap"]["key_values"]
     assert kv4["n_band_trips"] == swap["kinematics"]["n_band_trips"]
     assert kv4["n_thin_cells"] <= kv4["n_cells"]
 
@@ -190,14 +229,8 @@ def test_caption_numbers_match_source_artifacts(tmp_path: Path) -> None:
     assert kv_s2["pooling_shrinks_rec_fish_gap"]
     assert kv_s2["pooling_drops_fishing_kin_ddr"]
     oracle_p = load_json("results/oracle_ddr_pooled/oracle_ddr_summary.json")
-    fish_p = next(
-        r
-        for r in oracle_p["consistency_ddr"]
-        if r["mimicked_class"] == "fishing" and r["arm"] == "kinematics_only"
-    )
-    assert kv_s2["ddr_fishing_kinematics_pooled_pct"] == round(
-        float(fish_p["ddr"]) * 100.0, 1
-    )
+    fish_p = imitating_ddr(oracle_p)[("fishing", "kinematics_only")]
+    assert kv_s2["ddr_fishing_kinematics_pooled_pct"] == round(fish_p["ddr"] * 100.0, 1)
 
 def test_build_all_smoke() -> None:
     sys.path.insert(0, str(REPORT))
@@ -213,11 +246,11 @@ def test_build_all_smoke() -> None:
         for stem in (
             "fig2_rq1_feasibility",
             "fig3_rq2_ddr_gap",
-            "fig4_label_swap",
+            "fig4_far",
             "fig5_rq3_cost_warning",
-            "fig6_far",
             "figS1_severity",
             "figS2_pooled_gap",
+            "figS3_label_swap",
         ):
             assert (out / f"{stem}.png").is_file(), stem
             assert (out / f"{stem}.pdf").is_file(), stem

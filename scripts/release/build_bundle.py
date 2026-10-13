@@ -90,6 +90,18 @@ RESULTS_EXACT = [
     "results/label_swap_pooled/label_swap_summary.json",
     "results/label_swap_pooled/label_swap_report.md",
     "results/label_swap_pooled/label_swap_cells.parquet",
+    "results/causal_v3_rules_pooled/FROZEN.json",
+    "results/causal_v3_rules_pooled/summary.json",
+    "results/causal_v3_rules_pooled/report.md",
+    "results/causal_v3_rules_pooled/class_value.json",
+    "results/causal_v3_rules_pooled/class_value.md",
+    "results/causal_v3_fixed/rules_pooled/10kn/summary.json",
+    "results/causal_v3_fixed/rules_pooled/10kn/report.md",
+    "results/causal_v3_fixed/rules_pooled/15kn/summary.json",
+    "results/causal_v3_fixed/rules_pooled/15kn/report.md",
+    "results/causal_v3_fixed/rules_pooled/20kn/summary.json",
+    "results/causal_v3_fixed/rules_pooled/20kn/report.md",
+    "results/causal_v3_fixed/comparison.md",
 ]
 
 # Directory trees under results/ copied with extension filter (no weights).
@@ -103,7 +115,23 @@ RESULTS_TREES = [
     ("results/attacks/transfer", {".json", ".md"}),
     ("results/attacks/oracle", {".json", ".md"}),
     ("results/attacks/patch_core", {".json", ".md"}),
+    # Reported sequential evaluations. Checkpoint parquets are regenerable
+    # scoring products; the summaries, reports, and rate tables are the deposit.
+    ("results/causal_v3_rules", {".json", ".md", ".parquet"}),
+    ("results/causal_v3_fixed/rules", {".json", ".md", ".parquet"}),
+    ("results/causal_v3_offset", {".json", ".md", ".parquet"}),
+    # Off-axis replay manifests and cell tables. Point tracks stay local:
+    # they are regenerated from the code and the withheld AIS points.
+    ("results/adversary_replay_v3_offset", {".json", ".parquet"}),
 ]
+
+# Scoring products and point tracks. Summaries above are the released record.
+SKIP_RESULT_NAMES = {
+    "replay_checkpoints.parquet",
+    "replay_sparse_checkpoints.parquet",
+    "benign_checkpoints.parquet",
+    "tracks_points.parquet",
+}
 
 MMSI_DROP_RELS = {
     "tracks/tracks_ais.parquet",
@@ -229,6 +257,8 @@ def _copy_filtered_tree(src_root: Path, dst_root: Path, exts: set[str] | None) -
         if "patch_bank" in rel_s.split("/"):
             continue
         if is_weight_path(p):
+            continue
+        if p.name in SKIP_RESULT_NAMES:
             continue
         if exts is not None and p.suffix.lower() not in exts:
             continue
