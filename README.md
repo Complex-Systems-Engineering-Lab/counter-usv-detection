@@ -107,3 +107,7 @@ Redistribution defaults to annotations + derived features + code over the origin
 - [`docs/RUNPOD.md`](docs/RUNPOD.md) — optional cloud-GPU sync / setup / train workflow
 - [`data/HARMONIZATION.md`](data/HARMONIZATION.md) — train-time EO / track contract
 - [`data/taxonomy.yaml`](data/taxonomy.yaml) — canonical classes and source label maps
+
+## AI assistance
+
+Claude Opus 5, through Cursor, assisted with development of the research software in this repository. The author reviewed and tested the generated and modified code and is responsible for it.
